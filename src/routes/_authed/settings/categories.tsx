@@ -1,4 +1,4 @@
-import { Eye, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
+import { EyeIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -123,7 +123,7 @@ function CategoriesPage() {
       actionsColumn<Category>('Acciones', (row) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon-sm" aria-label="Ver" disabled>
-            <Eye className="size-3.5" />
+            <EyeIcon className="size-3.5" />
           </Button>
           {canEdit ? (
             <Button
@@ -132,7 +132,7 @@ function CategoriesPage() {
               onClick={() => setEditing(row)}
               aria-label="Editar"
             >
-              <PencilSimple className="size-3.5" />
+              <PencilSimpleIcon className="size-3.5" />
             </Button>
           ) : null}
           {canEdit ? (
@@ -142,7 +142,7 @@ function CategoriesPage() {
               onClick={() => setToDelete(row)}
               aria-label="Eliminar"
             >
-              <Trash className="size-3.5" />
+              <TrashIcon className="size-3.5" />
             </Button>
           ) : null}
         </div>
@@ -153,7 +153,7 @@ function CategoriesPage() {
 
   const emptyAction = canEdit ? (
     <Button onClick={() => setCreateOpen(true)} className={cn(buttonVariants())}>
-      <Plus className="size-4" />
+      <PlusIcon className="size-4" />
       Crear categoría
     </Button>
   ) : null;
@@ -169,7 +169,7 @@ function CategoriesPage() {
         </div>
         {canEdit ? (
           <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" />
+            <PlusIcon className="size-4" />
             Nueva categoría
           </Button>
         ) : null}

@@ -1,4 +1,4 @@
-import { Eye, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
+import { EyeIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -169,7 +169,7 @@ function ItemsIndexPage() {
             params={{ itemId: row.id }}
             className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }))}
           >
-            <Eye className="size-3.5" />
+            <EyeIcon className="size-3.5" />
           </Link>
           {role !== 'Employee' ? (
             <Link
@@ -177,7 +177,7 @@ function ItemsIndexPage() {
               params={{ itemId: row.id }}
               className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }))}
             >
-              <PencilSimple className="size-3.5" />
+              <PencilSimpleIcon className="size-3.5" />
             </Link>
           ) : null}
           {role !== 'Employee' ? (
@@ -187,7 +187,7 @@ function ItemsIndexPage() {
               onClick={() => setItemToDelete(row)}
               aria-label="Eliminar"
             >
-              <Trash className="size-3.5" />
+              <TrashIcon className="size-3.5" />
             </Button>
           ) : null}
         </div>
@@ -199,7 +199,7 @@ function ItemsIndexPage() {
   const emptyAction =
     role !== 'Employee' ? (
       <Link to="/items/new" className={cn(buttonVariants())}>
-        <Plus className="size-4" />
+        <PlusIcon className="size-4" />
         Crear item
       </Link>
     ) : null;
@@ -215,7 +215,7 @@ function ItemsIndexPage() {
         </div>
         {role !== 'Employee' ? (
           <Link to="/items/new" className={cn(buttonVariants())}>
-            <Plus className="size-4" />
+            <PlusIcon className="size-4" />
             Nuevo item
           </Link>
         ) : null}

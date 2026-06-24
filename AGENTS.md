@@ -656,7 +656,49 @@ function NewItemPage() {
 
 > **Schema local vs schema del back**: si el back ya valida con Zod, **no** duplicar. Si el front necesita un schema distinto (ej. para UX de confirmación), definir localmente en `src/lib/schemas/`.
 
-Ref: <https://react-hook-form.com/get-started> y <https://zod.dev>.
+#### 7.5.1 Nunca hacer cast del `Resolver` (`as Resolver<...>` / `as unknown as Resolver<...>`)
+
+El `zodResolver(schema)` está tipado con `Resolver<TInput, TContext, TOutput>`. Si en el form declarás `type FormValues` distinto al **input** del schema (por ejemplo `roleId: string` en el form pero `roleId: z.number()` en el schema) y forzás la signatura con un cast, **TypeScript deja de protegerte**. Zod rechaza los valores en runtime, `handleSubmit` no invoca `onSubmit`, y el botón "no hace nada" sin error en consola.
+
+**Regla:** el tipo del form debe coincidir con el **input** del schema (`z.input<typeof schema>`). Para convertir un `string` que viene del `<ComboboxField>` a `number` que espera el back, usar `z.union([z.string(), z.number()]).transform(...)` en el schema y mantener `z.infer`/`z.input`/`z.output` como contratos. Ver ejemplo en `src/lib/schemas/user.ts` (`roleIdForm`).
+
+```typescript
+// src/lib/schemas/user.ts
+const roleIdForm = z
+  .union([z.string(), z.number()])
+  .transform((value, ctx) => {
+    const num = typeof value === 'number' ? value : Number(value);
+    if (!Number.isInteger(num) || num <= 0) {
+      ctx.addIssue({ code: 'custom', message: 'Rol inválido' });
+      return z.NEVER;
+    }
+    return num;
+  });
+
+export const createUserSchema = z.object({
+  // ... otros campos
+  roleId: roleIdForm.optional(),
+});
+
+export type CreateUserInput = z.infer<typeof createUserSchema>;       // roleId: number (output)
+export type CreateUserFormValues = z.input<typeof createUserSchema>;   // roleId: string | number (input)
+```
+
+```typescript
+// En el dialog
+const { register, handleSubmit, formState: { errors } } = useForm<CreateUserFormValues>({
+  resolver: zodResolver(createUserSchema),  // SIN cast
+  defaultValues: { roleId: '3' /* ... */ },
+});
+```
+
+**Si el cast es inevitable** (por ejemplo, el schema viene de un tipo externo que no podés tocar), justificarlo con un comentario de una línea explicando por qué, **y** agregar un `console.error` en el `onError` de la mutation para que fallos de validación silenciosos del back sean visibles. Pero el caso normal es: el form usa `z.input`, el body usa `z.output`.
+
+**Síntoma típico del bug:** clic en "Guardar" no hace nada, no hay error en consola, `onSubmit` no se ejecuta. La causa casi siempre es: `zodResolver` fallando en runtime y silenciado por un cast en el tipo.
+
+Ref: <https://github.com/react-hook-form/resolvers#api> y <https://zod.dev/api#transform>.
+
+
 
 ### 7.6 Tailwind v4 + shadcn (Base UI)
 
@@ -688,10 +730,12 @@ Ref: <https://ui.shadcn.com/docs> y <https://base-ui.com/react/handbook/overview
 ### 7.7 phosphor-icons (iconos)
 
 ```typescript
-import { ShoppingCart, User, Package } from '@phosphor-icons/react'
+import { ShoppingCartIcon, UserIcon, PackageIcon } from '@phosphor-icons/react'
 
-<ShoppingCart className="h-5 w-5" weight="regular" />
+<ShoppingCartIcon className="h-5 w-5" weight="regular" />
 ```
+
+**Convención de naming (Phosphor v2):** cada icono se exporta con dos nombres: `Foo` (marcado `@deprecated`) y `FooIcon` (el actual). Usar **siempre** el sufijo `Icon`. Ejemplos: `EyeIcon`, `PlusIcon`, `TrashIcon`, `PencilSimpleIcon`, `WarningIcon`, `CheckIcon`.
 
 Tree-shaken. **No** instalar MUI Icons, FontAwesome, lucide-react (mantenerse en phosphor por consistencia).
 

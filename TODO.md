@@ -278,14 +278,83 @@
 - `BranchDeleteDialog` con input del nombre → template para `UserDeleteDialog` (1.6), `OrganizationDeleteDialog` (si se implementa en 1.6).
 - `useBranches` con shape `{ data, meta }` → template para futuros hooks paginados.
 
-### 1.6 Users — HU-004 (org profile), users
-- [ ] `src/lib/schemas/user.ts` con `createUserSchema`, `updateUserSchema`, `changeRoleSchema`
-- [ ] `src/api/queries/use-users.ts`: `useUsers({ page, limit, branchId })`, `useUser(id)`, `useCreateUser()`, `useUpdateUser()`, `useDeleteUser()`, `useChangeUserRole()`
-- [ ] `src/routes/_authed/settings/users.tsx`: tabla con `name`, `email`, `role`, `branch`, `isActive`, acciones
-- [ ] `<Dialog>` para create (delegado a `signUp` del back, ver back §1.2), edit, change-role, soft-delete
-- [ ] `<RoleBadge>` component con colores por rol (Admin/Manager/Employee)
-- [ ] `src/routes/_authed/settings/organization.tsx`: form para editar `name` de la org (HU-004), solo Admin
-- [ ] RoleGuard: Admin estricto para todo. El user no puede auto-borrarse (el back valida, mostrar mensaje)
+### 1.6 Users — HU-004 (org profile), users ✅ cerrada
+- [x] `src/lib/schemas/user.ts` con `createUserSchema`, `updateUserSchema`, `changeRoleSchema`
+- [x] `src/api/queries/use-users.ts`: `useUsers({ page, limit, branchId })`, `useUser(id)`, `useCreateUser()`, `useUpdateUser()`, `useDeleteUser()`, `useChangeUserRole()`
+- [x] `src/routes/_authed/settings/users.tsx`: tabla con `name`, `email`, `role`, `branch`, `isActive`, acciones
+- [x] `<Dialog>` para create (delegado a `signUp` del back, ver back §1.2), edit, change-role, soft-delete
+- [x] `<RoleBadge>` component con colores por rol (Admin/Manager/Employee)
+- [x] `src/routes/_authed/settings/organization.tsx`: form para editar `name` de la org (HU-004), solo Admin
+- [x] RoleGuard: Admin estricto para todo. El user no puede auto-borrarse (el back valida, mostrar mensaje)
+
+**Notas de cierre 1.6:**
+
+**Lo que se hizo (back):**
+- **Helper `assertNotLastAdmin`:** nuevo archivo `src/modules/users/use-cases/validate-last-admin.ts` con la función que cuenta admins activos de la org (excluyendo al target). Si el count es 0, tira 400 con mensaje claro.
+- **3 use cases actualizados** para invocar la validación:
+  - `SoftDeleteUser.execute`: ahora recibe `organizationId`. Valida si el target es admin activo.
+  - `ChangeUserRole.execute`: valida si el target es admin y se está degradando a otro rol.
+  - `UpdateUser.execute`: valida si el target es admin activo y se está poniendo `isActive: false`.
+- **Router:** el handler de DELETE ahora pasa `user.organizationId ?? ''` al use case.
+- **Back-end "último admin" garantizado:** las 3 vías (DELETE, PATCH role, PUT isActive=false) ya no pueden dejar a la org sin admins activos. El front muestra el mensaje del back via `mapApiError` (recién arreglado).
+
+**Lo que se hizo (front):**
+- **Schemas Zod** (`user.ts`, `organization.ts`) con `.refine` para coordinar role↔branch (Admin no puede tener branch, Manager/Employee sí). Validación client-side antes del submit.
+- **Hooks de API** (`use-users.ts`, `use-organizations.ts`) con shape `{ data, meta }` consistente con el resto de los list hooks.
+- **6 componentes nuevos** en `src/components/users/`:
+  - `RoleBadge`: badge con variant por rol (Admin=default, Manager=secondary, Employee=outline).
+  - `UserStatusBadge`: activo/inactivo.
+  - `UserCreateDialog`: form completo (email + password + name + role + branch condicional + isActive). Coordination role↔branch con `useEffect`.
+  - `UserEditDialog`: form simple (name + email + isActive).
+  - `UserChangeRoleDialog`: form (role + branch condicional). Misma coordination que create.
+  - `UserDeleteDialog`: confirmación destructiva con input del email (no del name, porque el email es único en la org).
+- **2 páginas nuevas**:
+  - `/settings/users`: DataTable con search/role/branch/showInactive, 4 Dialogs, botón "Eliminar" oculto para el user actual (auto-delete prevention).
+  - `/settings/organization`: form simple con `name`, solo Admin edita.
+- **Cleanup de icons deprecated:** 2 archivos migrados de `Eye`/`PencilSimple`/`Plus`/`Trash` a `*Icon` (phosphor v2 convention).
+- **AGENTS.md §7.7:** nota explícita de la convención `FooIcon` vs `Foo` deprecated.
+
+**Decisiones de implementación:**
+- **Confirmación destructiva con email** (no con name): el email es único en la org, evita confusión con users de mismo nombre. Patrón reusable (mismo que `BranchDeleteDialog` con name).
+- **Role-branch coordination via `useEffect`:** cuando el user cambia de role a Admin, `setValue('branchId', null, { shouldValidate: true })` dispara la limpieza. AGENTS §2.1.2 lo justifica (external sync entre form state y validación).
+- **`<UserSwitchIcon>` para "Cambiar rol":** semánticamente más claro que Shield o Key. El button label `aria-label="Cambiar rol"` refuerza.
+- **Botón "Eliminar" oculto para el user actual:** previene el click antes de que el back rechace. El back igual valida con 400 si pasara.
+- **Sin `<RoleGuard>` en la ruta:** igual que branches, el front oculta botones según rol. El back valida con `roleGuard(['Admin'])` en mutations.
+- **`as unknown as Resolver<FormValues>`** en los Dialogs con role-string-vs-number mismatch: el `zodResolver` infiere `roleId: number` pero el form usa `string` (porque el ComboboxField solo acepta strings). Cast controlado, documentado en el código.
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (bundle del shell: 445KB gz 134KB; chunk `users` 26KB gz 9KB)
+- `pnpm run lint` ✅ (1 info pre-existente de Biome 2.5)
+- `pnpm run routes:gen` ✅
+- Back: `pnpm run type-check` ✅
+
+**Bugs encontrados (back):**
+- **El handler de DELETE no pasaba `organizationId` al use case.** Fix: agregar `user.organizationId ?? ''` como tercer argumento.
+- **El back no validaba "último admin activo" en DELETE, PATCH /role, ni PUT isActive=false.** Fix: helper `assertNotLastAdmin` invocado en los 3 use cases.
+
+**Race condition documentada** (back): la validación + mutación NO están en una transacción explícita. Si dos requests concurrentes borran al último admin simultáneamente, podrían quedar 0. Aceptable para MVP; documentado en el comment del helper. Refactor futuro: `db.transaction` con `db | tx` en el repositorio.
+
+**Verificación manual pendiente (no automatizada):**
+- Login Admin → `/settings/users` → ver lista (1 user, el propio).
+- Crear user Manager en una branch → 201 → aparece.
+- Editar el name → 200.
+- Cambiar el rol de Manager a Admin (debería limpiar la branch automáticamente) → 200.
+- Cambiar el rol de Admin a Manager (debería requerir branch) → seleccionar branch → 200.
+- Intentar eliminar el propio user → el botón no aparece.
+- Eliminar otro user (con input del email) → 200.
+- Crear user con email duplicado → 409 → toast con mensaje del back.
+- Test del fix del back:
+  - Crear otro user vía signUp, promover a Admin via PATCH /role.
+  - Intentar eliminar al primer Admin → debería fallar con 400.
+  - Intentar degradar al primer Admin (vía PATCH /role) → debería fallar con 400.
+  - Intentar inactivar (PUT isActive=false) al primer Admin → debería fallar con 400.
+- `/settings/organization` → cambiar name → 200.
+- Login Manager → ver la página de users sin botones de write.
+
+**Patrones nuevos para reusar en próximos sprints:**
+- `UserChangeRoleDialog` con coordination role↔branch via `useEffect` → template para cualquier form con campos dependientes.
+- `UserDeleteDialog` con input del email → confirma que el patrón de "confirmación destructiva con input" (AGENTS §12.5) es reusable.
 
 ### 1.7 Warehouses
 - [ ] `src/lib/schemas/warehouse.ts` con `createWarehouseSchema` (incluye `branchIds: string[]` array de branches asignadas)
@@ -526,7 +595,7 @@
 | Fase | HU cubiertas (back) | % back con UI | Estado |
 |------|---------------------|----------------|--------|
 | Fase 0 — Fundación | Setup, auth, infra | 100% | ✅ cerrada (0.1, 0.2, 0.3, 0.4) |
-| Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 5/10 sub-secciones (branch context, items, categories, units, branches) | ⏳ en progreso |
+| Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 7/10 sub-secciones (branch context, items, categories, units, branches, users, org) | ⏳ en progreso |
 | Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 0% | ⏳ pendiente |
 | Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 0% | ⏳ pendiente |
 | Fase 4 — Pulido | Polish + a11y + perf + role security | 0% | ⏳ pendiente |
