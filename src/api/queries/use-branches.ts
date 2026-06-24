@@ -11,9 +11,10 @@ type BranchDetailResponse = NonNullable<
   paths['/api/v1/branches/{id}']['get']['responses']['200']['content']['application/json']
 >;
 type BranchItem = BranchesListResponse['data']['data'][number];
+export type BranchesList = { data: BranchItem[]; meta: BranchesListResponse['data']['meta'] };
 
 export function useBranches(query: Partial<ListBranchesQuery> = {}) {
-  return useQuery({
+  return useQuery<BranchesList>({
     queryKey: branchKeys.list(query),
     queryFn: async () => {
       const { data, error } = await api.GET('/api/v1/branches', {

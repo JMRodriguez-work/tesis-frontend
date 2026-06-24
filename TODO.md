@@ -226,18 +226,57 @@
 - [ ] CRUD inline en `/settings` o como `<Dialog>` desde la lista de items
 - [ ] RoleGuard: Admin/Manager write, todos lectura
 
-### 1.4 Units
-- [ ] `src/api/queries/use-units.ts`: `useUnits()` (lista global, solo lectura)
-- [ ] Select prellenado en forms de items, sale items, provider order items
-- [ ] Cache: `staleTime: Infinity` (no cambian en runtime, se mantienen por seed)
+### 1.4 Units ✅ cerrada
+- [x] `src/api/queries/use-units.ts`: `useUnits()` (lista global, solo lectura)
+- [x] Select prellenado en forms de items, sale items, provider order items
+- [x] Cache: `staleTime: Infinity` (no cambian en runtime, se mantienen por seed)
 
-### 1.5 Branches
-- [ ] `src/lib/schemas/branch.ts` con `createBranchSchema`, `updateBranchSchema`
-- [ ] `src/api/queries/use-branches.ts`: `useBranches({ page, limit, isActive })`, `useBranch(id)`, `useCreateBranch()`, `useUpdateBranch()`, `useDeleteBranch()`
-- [ ] `src/routes/_authed/settings/branches.tsx`: tabla con todas las branches de la org (no solo la del user — ver back §1.3), columnas: `name`, `isActive`, acciones
-- [ ] `<Dialog>` para create/edit con form
-- [ ] Soft-delete: confirmar antes, mostrar 400 si es la última activa (mensaje del back)
-- [ ] RoleGuard: Admin write, todos lectura
+**Notas de cierre 1.4:**
+- Sprint dummy. El hook `useUnits()` y su consumo en forms de items se implementaron en el sprint 1.2 (cerrado). El item se mantenía como pendiente por error histórico en el TODO. No requirió código nuevo.
+- Decisión: no se crea un `<UnitSelector>` reusado porque cada form tiene un layout distinto (ComboboxField standalone en items, multi-unit en sales con quantity-per-unit, etc.). Mejor reusar `<ComboboxField>` con `items` computado en cada call site.
+
+### 1.5 Branches ✅ cerrada
+- [x] `src/lib/schemas/branch.ts` con `createBranchSchema`, `updateBranchSchema`
+- [x] `src/api/queries/use-branches.ts`: `useBranches({ page, limit, isActive })`, `useBranch(id)`, `useCreateBranch()`, `useUpdateBranch()`, `useDeleteBranch()`
+- [x] `src/routes/_authed/settings/branches.tsx`: tabla con todas las branches de la org (no solo la del user — ver back §1.3), columnas: `name`, `organization.name`, `isActive`, acciones
+- [x] `<Dialog>` para create/edit con form
+- [x] Soft-delete: confirmar antes, mostrar 400 si es la última activa (mensaje del back)
+- [x] RoleGuard: Admin write, todos lectura
+
+**Notas de cierre 1.5:**
+
+**Lo que se hizo:**
+- Schemas y hooks ya existían desde 1.1 (branch context). El sprint los reusó directamente.
+- 4 componentes nuevos: `BranchStatusBadge`, `BranchCreateDialog`, `BranchEditDialog`, `BranchDeleteDialog` (con confirmación destructiva por input del nombre).
+- Página `/settings/branches` con tabla (DataTable), filtros (search debounced, showInactive), paginación server-side, y los 3 Dialogs.
+- Página accesible para todos (read-only para Manager/Employee, botones de write solo para Admin). El back fuerza Admin en POST/PUT/DELETE con `roleGuard(['Admin'])`; GET no requiere role específico.
+
+**Decisiones de implementación:**
+- **`<BranchDeleteDialog>` con input del nombre:** patrón nuevo documentado en AGENTS §12.5. El user debe tipear el nombre exacto de la branch para confirmar. Razón: la operación es destructiva (afecta users, items, warehouses, sales referenciadas). El `.refine` de Zod se usa para el match exacto (`val === branch.name`).
+- **Scope org-wide, no scope-by-branch:** la lista de branches es de TODA la org. No se usa `useCurrentBranchId()` para el query (no aplica el patrón de AGENTS §13.1). El back ignora `branchId` en query para branches.
+- **`useBranches` ahora devuelve `{ data: BranchItem[], meta }`** (antes devolvía el inner data). Tuve que actualizar el `BranchHydrator` (que consumía `branchesQuery.data?.data.data`). Patrón consistente con `useItems` y `useItemCategories`.
+- **El `useMemo` en `BranchDeleteDialog`:** el `confirmSchema` se memoiza con `[branch?.name]` como dep. Razón: la función del `zodResolver` se re-crearía en cada render, causando re-mounts innecesarios del form. Documentado en AGENTS §2.1.3 (motivo concreto).
+- **`useEffect` en `BranchEditDialog` y `BranchDeleteDialog`:** AGENTS §2.1.2 los justifica (external sync entre TanStack Query data y RHF state). Patrón idéntico al de `CategoryEditDialog`.
+- **El `useBranches({ limit: 100 })` del `BranchHydrator`:** sigue trayendo todas las branches (necesario para popular el store). Cache entry distinta de la query de la página. OK para MVP (típico 1-5 branches por org).
+- **Sin `<RoleGuard>` en la ruta:** la página es accesible para todos; los botones se ocultan según rol. El back valida Admin en mutations. Más simple que un RoleGuard que redirija a `/dashboard`.
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (bundle del shell: 444KB gz 134KB; chunk `branches` no listado, lazy-loaded dentro de `_authed`)
+- `pnpm run lint` ✅ (1 info pre-existente de Biome 2.5)
+- `pnpm run routes:gen` ✅ (ruta ya estaba registrada)
+- Manual: pendiente (no automatizado, AGENTS §15)
+  - Login Admin → `/settings/branches` → ver lista → crear/editar/eliminar → confirmar eliminación con input del nombre.
+  - Intentar eliminar la última branch activa → toast con mensaje del back.
+  - Login Manager → ver lista sin botones de write.
+
+**Bugs encontrados:**
+- Ninguno del front. El back responde correctamente a `roleGuard(['Admin'])` para mutations.
+- Bug pre-existente: el `useBranches` devolvía `data.data` (sin meta). Ajustado para devolver `BranchesList` con meta. El `BranchHydrator` se actualizó en consecuencia.
+
+**Patrones nuevos para reusar en próximos sprints:**
+- `BranchDeleteDialog` con input del nombre → template para `UserDeleteDialog` (1.6), `OrganizationDeleteDialog` (si se implementa en 1.6).
+- `useBranches` con shape `{ data, meta }` → template para futuros hooks paginados.
 
 ### 1.6 Users — HU-004 (org profile), users
 - [ ] `src/lib/schemas/user.ts` con `createUserSchema`, `updateUserSchema`, `changeRoleSchema`
@@ -487,7 +526,7 @@
 | Fase | HU cubiertas (back) | % back con UI | Estado |
 |------|---------------------|----------------|--------|
 | Fase 0 — Fundación | Setup, auth, infra | 100% | ✅ cerrada (0.1, 0.2, 0.3, 0.4) |
-| Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 2/10 sub-secciones (branch context + items) | ⏳ en progreso |
+| Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 5/10 sub-secciones (branch context, items, categories, units, branches) | ⏳ en progreso |
 | Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 0% | ⏳ pendiente |
 | Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 0% | ⏳ pendiente |
 | Fase 4 — Pulido | Polish + a11y + perf + role security | 0% | ⏳ pendiente |

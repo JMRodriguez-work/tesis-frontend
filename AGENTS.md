@@ -872,19 +872,62 @@ Ref: <https://tanstack.com/router/latest/docs/framework/react/guide/authenticate
 
 ### 10.1 Mapear errores del backend a mensajes en español
 
+**Contrato del back:** cualquier response 4xx/5xx devuelve `{ message: string, data?: unknown }` (ver `ApiError` en `shared/http/api-response.ts` del back). El front NO debe inventar mensajes de error: usa los que vienen del back.
+
+**openapi-fetch:** el `error` que devuelve NO es un `Error` instance — es el JSON parseado del body. Por eso `mapApiError` no puede usar solo `err instanceof Error` (caería al fallback "Error desconocido" para todos los 4xx/5xx del back).
+
 ```typescript
 // src/lib/api-error.ts
 export type ApiErrorPayload = { message: string; field?: string }
 
+function isObjectWithMessage(value: unknown): value is { message: unknown } {
+  return typeof value === 'object' && value !== null && 'message' in value
+}
+
+function isApiErrorBody(value: unknown): value is { message: string; data?: unknown } {
+  if (!isObjectWithMessage(value)) return false
+  const { message } = value
+  return typeof message === 'string' && message.length > 0
+}
+
 export function mapApiError(err: unknown): ApiErrorPayload {
+  if (err === null || err === undefined) {
+    return { message: 'Error desconocido' }
+  }
+
   if (err instanceof Error) {
     if (err.message.includes('Failed to fetch')) {
       return { message: 'No se pudo conectar con el servidor. Verificá tu conexión.' }
     }
     return { message: err.message }
   }
+
+  if (isApiErrorBody(err)) {
+    return { message: err.message }
+  }
+
   return { message: 'Error desconocido' }
 }
+```
+
+**Orden de los checks** (importante):
+
+1. `null` / `undefined` → fallback (defensivo, no debería llegar nunca).
+2. `Error` instance → primero porque cubre `'Failed to fetch'` (network error) y cualquier `throw new Error(...)` manual. Si el `err` es un `Error` con `message: 'Failed to fetch'`, queremos el mensaje custom de network, no el genérico.
+3. Shape `{ message: string }` del back → caso más común en este proyecto (todos los 4xx/5xx del back).
+4. Fallback "Error desconocido" → cualquier otra cosa (string suelta, array, etc.).
+
+**Uso en componentes** (en `onError` de mutations o en `ErrorState`):
+
+```typescript
+import { mapApiError } from '@/lib/api-error'
+
+createItem.mutate(body, {
+  onError: (err) => toast.error(mapApiError(err).message),
+})
+
+// O en ErrorState (recibe unknown):
+<ErrorState error={queryError} onRetry={() => refetch()} />
 ```
 
 ### 10.2 Toast para feedback global
@@ -1120,6 +1163,96 @@ import { cn } from '@/lib/utils'
   isLoading && 'opacity-50 cursor-not-allowed',
 )} />
 ```
+
+### 12.5 Confirmación destructiva con input del nombre
+
+Para acciones irreversibles (soft-delete de una branch, user, organization, etc.) **NO** alcanza con un `<Dialog>` de un solo botón "Eliminar". El usuario debe **tipear el nombre exacto** del recurso para confirmar. Esto reduce clicks accidentales en operaciones que afectan múltiples entidades relacionadas.
+
+**Patrón (`src/components/<recurso>/<recurso>-delete-dialog.tsx`):**
+
+```typescript
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { useDeleteBranch } from '@/api/queries/use-branches';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { mapApiError } from '@/lib/api-error';
+
+function BranchDeleteDialog({ open, onOpenChange, branch }: { open: boolean; onOpenChange: (open: boolean) => void; branch: BranchItem | null }) {
+  const deleteBranch = useDeleteBranch();
+
+  const confirmSchema = useMemo(
+    () => z.object({
+      confirmName: z.string().refine((val) => val === branch?.name, {
+        message: 'El nombre no coincide',
+      }),
+    }),
+    [branch?.name],
+  );
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<z.infer<typeof confirmSchema>>({
+    resolver: zodResolver(confirmSchema),
+    defaultValues: { confirmName: '' },
+  });
+
+  useEffect(() => {
+    if (open) reset({ confirmName: '' });
+  }, [open, reset]);
+
+  const onSubmit = () => {
+    if (!branch) return;
+    deleteBranch.mutate(branch.id, {
+      onSuccess: () => { toast.success('Sucursal eliminada'); onOpenChange(false); },
+      onError: (err) => toast.error(mapApiError(err).message),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Eliminar sucursal</DialogTitle>
+          <DialogDescription>
+            Esta acción no se puede deshacer. Si la sucursal es la única activa de la organización o
+            tiene usuarios activos, la operación fallará.
+            <br />
+            Para confirmar, escribí el nombre exacto de la sucursal: <strong>{branch?.name}</strong>
+          </DialogDescription>
+        </DialogHeader>
+        <form id="delete-form" onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="confirm-name">Nombre de la sucursal</Label>
+            <Input id="confirm-name" autoComplete="off" {...register('confirmName')} />
+            {errors.confirmName ? (
+              <p className="text-xs text-destructive">{errors.confirmName.message}</p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="submit" form="delete-form" variant="destructive" disabled={isSubmitting || deleteBranch.isPending}>
+              {deleteBranch.isPending ? 'Eliminando…' : 'Eliminar'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+**Reglas:**
+
+- `useMemo` para el schema (depende de `branch.name`) — evita re-crear el `resolver` de RHF en cada render.
+- `useEffect` que resetea el form cuando `open` cambia a `true` (cierre de un delete cancelado no debe dejar el input sucio).
+- `register('confirmName')` sin `validate` en el HTML — el `.refine` del schema es la única fuente de verdad.
+- `mapApiError(err).message` en `onError` — el back devuelve mensajes específicos ("última activa", "tiene usuarios", etc.) que el toast muestra tal cual.
+- Un componente por archivo (este dialog es un archivo separado del detail page).
+
+**Cuándo usarlo:** delete de branch, delete de user, delete de organization. **No usar** para: cancelar una venta (input de motivo, no confirmación), cambiar isActive de un item (toggle inline, no es destructivo).
 
 ---
 
