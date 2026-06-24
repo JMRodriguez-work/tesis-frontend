@@ -11,61 +11,169 @@ import {
   UsersIcon,
   WarehouseIcon,
 } from '@phosphor-icons/react';
-import { Link } from '@tanstack/react-router';
-import { cn } from '@/lib/cn';
+import { Link, useMatchRoute } from '@tanstack/react-router';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarRail,
+} from '@/components/ui/sidebar';
 
-type NavLink = { to: string; label: string; icon: React.ReactNode };
+type NavLink = {
+  to: string;
+  label: string;
+  icon?: React.ReactNode;
+  exact?: boolean;
+};
 
-const NAV: NavLink[] = [
-  { to: '/dashboard', label: 'Inicio', icon: <HouseIcon className="size-4" /> },
+const OPERATION_LINKS: NavLink[] = [
+  { to: '/dashboard', label: 'Inicio', icon: <HouseIcon className="size-4" />, exact: true },
   { to: '/items', label: 'Items', icon: <PackageIcon className="size-4" /> },
   { to: '/sales', label: 'Ventas', icon: <ShoppingCartIcon className="size-4" /> },
   { to: '/customers', label: 'Clientes', icon: <UsersIcon className="size-4" /> },
   { to: '/warehouses', label: 'Depósitos', icon: <WarehouseIcon className="size-4" /> },
   { to: '/providers', label: 'Proveedores', icon: <TruckIcon className="size-4" /> },
-  { to: '/provider_orders', label: 'Órdenes', icon: <ClipboardTextIcon className="size-4" /> },
+  {
+    to: '/provider-orders',
+    label: 'Órdenes',
+    icon: <ClipboardTextIcon className="size-4" />,
+  },
+  { to: '/reports', label: 'Reportes', icon: <ChartLineUpIcon className="size-4" /> },
+];
+
+const ALERT_LINKS: NavLink[] = [
   {
     to: '/recommendations',
     label: 'Recomendaciones',
     icon: <BellRingingIcon className="size-4" />,
   },
-  { to: '/reports', label: 'Reportes', icon: <ChartLineUpIcon className="size-4" /> },
-  { to: '/settings/organization', label: 'Configuración', icon: <GearIcon className="size-4" /> },
+  { to: '/notifications', label: 'Notificaciones', icon: <BellIcon className="size-4" /> },
 ];
 
-function Sidebar() {
+const SETTINGS_LINKS: NavLink[] = [
+  { to: '/settings/organization', label: 'Organización' },
+  { to: '/settings/branches', label: 'Sucursales' },
+  { to: '/settings/categories', label: 'Categorías' },
+  { to: '/settings/users', label: 'Usuarios' },
+  { to: '/settings/external-data', label: 'Datos externos' },
+];
+
+function isLinkActive(
+  matchRoute: ReturnType<typeof useMatchRoute>,
+  to: string,
+  exact?: boolean,
+): boolean {
+  const match = matchRoute({ to, fuzzy: !exact });
+  return Boolean(match);
+}
+
+function MainSidebar() {
+  const matchRoute = useMatchRoute();
+
   return (
-    <aside className="hidden w-60 shrink-0 border-r border-border bg-card md:flex md:flex-col">
-      <div className="flex h-14 items-center border-b border-border px-4">
-        <span className="text-sm font-semibold">TFG Frontend</span>
-      </div>
-      <nav className="flex-1 space-y-1 p-2">
-        {NAV.map((link) => (
-          <Link
-            key={link.to}
-            to={link.to}
-            className={cn(
-              'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors',
-              'hover:bg-muted hover:text-foreground',
-            )}
-            activeProps={{ className: 'bg-muted text-foreground' }}
-          >
-            {link.icon}
-            <span>{link.label}</span>
-          </Link>
-        ))}
-      </nav>
-      <div className="border-t border-border p-2">
-        <Link
-          to="/notifications"
-          className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <BellIcon className="size-4" />
-          <span>Notificaciones</span>
-        </Link>
-      </div>
-    </aside>
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              render={
+                <Link to="/dashboard" aria-label="Ir al inicio">
+                  <span className="text-sm font-semibold">TFG Frontend</span>
+                </Link>
+              }
+            />
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Operación</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {OPERATION_LINKS.map((link) => (
+                <SidebarMenuItem key={link.to}>
+                  <SidebarMenuButton
+                    isActive={isLinkActive(matchRoute, link.to, link.exact)}
+                    render={
+                      <Link to={link.to} activeOptions={{ exact: link.exact ?? false }}>
+                        {link.icon}
+                        <span>{link.label}</span>
+                      </Link>
+                    }
+                  />
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Alertas</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {ALERT_LINKS.map((link) => (
+                <SidebarMenuItem key={link.to}>
+                  <SidebarMenuButton
+                    isActive={isLinkActive(matchRoute, link.to, link.exact)}
+                    render={
+                      <Link to={link.to} activeOptions={{ exact: link.exact ?? false }}>
+                        {link.icon}
+                        <span>{link.label}</span>
+                      </Link>
+                    }
+                  />
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>
+            <span className="flex items-center gap-2">
+              <GearIcon className="size-3.5" />
+              Configuración
+            </span>
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={isLinkActive(matchRoute, '/settings/organization')}
+                  render={
+                    <Link to="/settings/organization">
+                      <span>General</span>
+                    </Link>
+                  }
+                />
+                <SidebarMenuSub>
+                  {SETTINGS_LINKS.slice(1).map((link) => (
+                    <SidebarMenuSubItem key={link.to}>
+                      <SidebarMenuSubButton
+                        isActive={isLinkActive(matchRoute, link.to)}
+                        render={<Link to={link.to}>{link.label}</Link>}
+                      />
+                    </SidebarMenuSubItem>
+                  ))}
+                </SidebarMenuSub>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+      <SidebarRail />
+    </Sidebar>
   );
 }
 
-export { Sidebar };
+export { MainSidebar };

@@ -70,17 +70,16 @@ function ItemsIndexPage() {
     [search.page, debouncedSearch, search.categoryId, search.showInactive, branchIdForQuery],
   );
 
-  const { data, isLoading, error, refetch } = useItems(listQuery);
-  const { data: categories } = useItemCategories({
-    branchId: branchIdForQuery,
-    isActive: true,
-  });
-
-  const isAdminWithoutBranch = role === 'Admin' && !currentBranchId;
+  const itemsEnabled = role !== 'Admin' || !!currentBranchId;
+  const { data, isLoading, error, refetch } = useItems(listQuery, { enabled: itemsEnabled });
+  const { data: categories } = useItemCategories(
+    { branchId: branchIdForQuery, isActive: true },
+    { enabled: itemsEnabled },
+  );
 
   const categoryItems: ComboboxItem[] = useMemo(
     () =>
-      categories?.map((cat) => ({
+      categories?.data.map((cat) => ({
         label: cat.name,
         value: cat.id,
       })) ?? [],
@@ -252,28 +251,22 @@ function ItemsIndexPage() {
         />
       </div>
 
-      {isAdminWithoutBranch ? (
-        <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-          Seleccioná una sucursal para ver los items.
-        </div>
-      ) : (
-        <DataTable
-          data={data?.data ?? []}
-          columns={columns}
-          meta={data?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
-          onPageChange={handlePageChange}
-          isLoading={isLoading}
-          error={error}
-          onRetry={() => void refetch()}
-          emptyTitle="Sin items"
-          emptyDescription={
-            role === 'Employee'
-              ? 'No hay items registrados en esta sucursal.'
-              : 'Aún no hay items. Creá el primero.'
-          }
-          emptyAction={emptyAction}
-        />
-      )}
+      <DataTable
+        data={data?.data ?? []}
+        columns={columns}
+        meta={data?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
+        onPageChange={handlePageChange}
+        isLoading={isLoading}
+        error={error}
+        onRetry={() => void refetch()}
+        emptyTitle="Sin items"
+        emptyDescription={
+          role === 'Employee'
+            ? 'No hay items registrados en esta sucursal.'
+            : 'Aún no hay items. Creá el primero.'
+        }
+        emptyAction={emptyAction}
+      />
 
       <Dialog
         open={itemToDelete !== null}

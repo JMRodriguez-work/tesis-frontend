@@ -1,4 +1,4 @@
-import { SignOutIcon, UserIcon } from '@phosphor-icons/react';
+import { ListIcon, SignOutIcon, UserIcon } from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { useMe, useSignOut } from '@/api/queries/use-auth';
@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { mapApiError } from '@/lib/api-error';
 
 function Topbar() {
@@ -31,8 +32,13 @@ function Topbar() {
   };
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4">
-      <BranchSelector />
+    <header className="flex h-14 items-center justify-between gap-2 border-b border-border bg-card px-4">
+      <div className="flex items-center gap-2">
+        <SidebarTrigger aria-label="Abrir menú lateral">
+          <ListIcon className="size-4" />
+        </SidebarTrigger>
+        <BranchSelector />
+      </div>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={

@@ -25,6 +25,8 @@ export const itemCategoryKeys = {
   all: ['item-categories'] as const,
   lists: () => [...itemCategoryKeys.all, 'list'] as const,
   list: (q: object) => [...itemCategoryKeys.lists(), q] as const,
+  details: () => [...itemCategoryKeys.all, 'detail'] as const,
+  detail: (id: string) => [...itemCategoryKeys.details(), id] as const,
 };
 
 export const unitKeys = {

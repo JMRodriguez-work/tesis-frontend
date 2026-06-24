@@ -1,13 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeftIcon, BarcodeIcon, WarningIcon } from '@phosphor-icons/react';
+import { ArrowLeftIcon, BarcodeIcon, PlusIcon, WarningIcon } from '@phosphor-icons/react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { type Resolver, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { useMe } from '@/api/queries/use-auth';
-import { useItemCategories } from '@/api/queries/use-item-categories';
+import { type Category, useItemCategories } from '@/api/queries/use-item-categories';
 import { useCreateItem } from '@/api/queries/use-items';
 import { useUnits } from '@/api/queries/use-units';
+import { CategoryCreateDialog } from '@/components/items/category-create-dialog';
 import { PricingWarning } from '@/components/items/pricing-warning';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -31,19 +32,22 @@ function NewItemPage() {
   const { data: me } = useMe();
   const role = roleFromId(me?.roleId ?? null);
   const currentBranchId = useCurrentBranchId();
-  const isAdminWithoutBranch = role === 'Admin' && !currentBranchId;
+  const adminBranchId = role === 'Admin' ? (currentBranchId ?? undefined) : undefined;
 
   const createItem = useCreateItem();
-  const { data: categories } = useItemCategories({
-    branchId: role === 'Admin' ? (currentBranchId ?? undefined) : undefined,
-    isActive: true,
-  });
+  const { data: categories } = useItemCategories(
+    {
+      branchId: adminBranchId,
+      isActive: true,
+    },
+    { enabled: role !== 'Admin' || !!currentBranchId },
+  );
   const { data: units } = useUnits();
 
   const categoryItems: ComboboxItem[] = useMemo(
     () => [
       { label: '— Sin categoría —', value: null },
-      ...(categories?.map((cat) => ({ label: cat.name, value: cat.id })) ?? []),
+      ...(categories?.data.map((cat) => ({ label: cat.name, value: cat.id })) ?? []),
     ],
     [categories],
   );
@@ -65,6 +69,7 @@ function NewItemPage() {
     salePrice: string;
     purchasePrice: string;
   } | null>(null);
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
 
   type FormValues = {
     name: string;
@@ -114,7 +119,7 @@ function NewItemPage() {
     createItem.mutate(
       {
         body: values,
-        branchId: role === 'Admin' ? (currentBranchId ?? undefined) : undefined,
+        branchId: adminBranchId,
       },
       {
         onSuccess: (data) => {
@@ -147,13 +152,6 @@ function NewItemPage() {
         </Link>
         <h1 className="text-lg font-semibold">Nuevo item</h1>
       </header>
-
-      {isAdminWithoutBranch ? (
-        <Alert variant="warning">
-          <WarningIcon weight="fill" />
-          <AlertDescription>Seleccioná una sucursal antes de crear un item.</AlertDescription>
-        </Alert>
-      ) : null}
 
       <form
         onSubmit={handleSubmit(onSubmit)}
@@ -240,14 +238,28 @@ function NewItemPage() {
         ) : null}
 
         <div className="grid grid-cols-2 gap-4">
-          <ComboboxField
-            id="categoryId"
-            label="Categoría"
-            items={categoryItems}
-            value={watch('categoryId') ?? null}
-            onValueChange={(value) => setValue('categoryId', value ?? undefined)}
-            placeholder="Sin categoría"
-          />
+          <div className="flex flex-col gap-1.5">
+            <ComboboxField
+              id="categoryId"
+              label="Categoría"
+              items={categoryItems}
+              value={watch('categoryId') ?? null}
+              onValueChange={(value) => setValue('categoryId', value ?? undefined)}
+              placeholder="Sin categoría"
+            />
+            {role !== 'Employee' ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setCreateCategoryOpen(true)}
+                className="self-start"
+              >
+                <PlusIcon className="size-3.5" />
+                Nueva categoría
+              </Button>
+            ) : null}
+          </div>
           <ComboboxField
             id="baseUnitId"
             label="Unidad base"
@@ -275,11 +287,20 @@ function NewItemPage() {
           <Link to="/items" className={cn(buttonVariants({ variant: 'outline' }))}>
             Cancelar
           </Link>
-          <Button type="submit" disabled={createItem.isPending || isAdminWithoutBranch}>
+          <Button type="submit" disabled={createItem.isPending}>
             {createItem.isPending ? 'Creando…' : 'Crear item'}
           </Button>
         </div>
       </form>
+
+      <CategoryCreateDialog
+        open={createCategoryOpen}
+        onOpenChange={setCreateCategoryOpen}
+        branchId={role === 'Admin' ? (currentBranchId ?? undefined) : undefined}
+        onCreated={(category: Category) =>
+          setValue('categoryId', category.id, { shouldValidate: true })
+        }
+      />
     </div>
   );
 }

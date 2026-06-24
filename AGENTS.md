@@ -1136,6 +1136,39 @@ pnpm add zustand  # solo si se necesita
 
 > **Por qué Zustand y no Context**: Context re-renderiza todos los consumers cuando cambia el value, sin selector. Zustand tiene selector-based subscriptions. Si el estado se lee desde >3 componentes profundamente anidados, vale. Si no, prop drilling.
 
+### 13.1 Branch store: contrato de "branch activa"
+
+El store en `src/lib/branch-store.ts` mantiene la **branch activa** del user. Es consumido por pantallas, queries y mutaciones scope-by-branch (item-categories, items, sales, etc.).
+
+**Contrato del `BranchHydrator` (`src/components/layout/branch-hydrator.tsx`):**
+
+- Garantiza que `currentBranchId` siempre tiene un valor válido **mientras haya branches en la org**.
+- Para **Admin**: si `currentBranchId` es `null` o apunta a una branch que ya no existe (soft-deleted), autoselecciona la primera de la lista.
+- Para **Manager/Employee**: sincroniza `currentBranchId = me.branchId` si difiere.
+- Caso degenerado: si la org no tiene branches (`branches.length === 0`), el store queda con `currentBranchId = null`. **Esto es responsabilidad de las páginas** manejar el caso via `enabled: false` en queries o guard.
+
+**Patrón para páginas Admin** (típico, scope-by-branch):
+
+```typescript
+const currentBranchId = useCurrentBranchId();
+const adminBranchId = role === 'Admin' ? currentBranchId ?? undefined : undefined;
+
+const { data, isLoading, error } = useItems(
+  { branchId: adminBranchId, ...otherFilters },
+  { enabled: role !== 'Admin' || !!currentBranchId },
+);
+```
+
+- `useItems` y `useItemCategories` aceptan un segundo argumento `options?: Pick<UseQueryOptions, 'enabled'>` para controlar cuándo se dispara el query.
+- `enabled: role !== 'Admin' || !!currentBranchId` es el patrón estándar: Manager/Employee siempre se dispara (el back fuerza su branch); Admin solo si tiene branch activa.
+- **NO** agregar un filtro de "Sucursal" en cada página. La branch activa del store es la única branch visible. Si Admin quiere ver otra branch, usa el `<BranchSelector>` del topbar (cambio consciente, global).
+
+**Lo que NO se hace:**
+
+- ❌ `isAdminWithoutBranch` con `<Alert>` en cada página. El hydrator ya garantiza branch activa.
+- ❌ Filtros de "Todas las sucursales" o "Seleccionar sucursal" en páginas de scope-by-branch. El back exige `branchId` para Admin y filtra por su branch para Manager/Employee.
+- ❌ Pasar `branchId` distinto a la branch activa. La branch activa es global.
+
 ---
 
 ## 14. Performance

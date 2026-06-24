@@ -3,11 +3,11 @@ import {
   PackageIcon,
   ShoppingCartIcon,
   WarehouseIcon,
-} from "@phosphor-icons/react";
-import { Link } from "@tanstack/react-router";
-import { FeatureCard } from "@/components/landing/feature-card";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+} from '@phosphor-icons/react';
+import { Link } from '@tanstack/react-router';
+import { FeatureCard } from '@/components/landing/feature-card';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 function LandingPage() {
   return (
@@ -19,13 +19,10 @@ function LandingPage() {
             <span className="text-sm font-semibold">TFG</span>
           </div>
           <nav className="flex items-center gap-2">
-            <Link
-              to="/login"
-              className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-            >
+            <Link to="/login" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
               Iniciar sesión
             </Link>
-            <Link to="/signup" className={cn(buttonVariants({ size: "sm" }))}>
+            <Link to="/signup" className={cn(buttonVariants({ size: 'sm' }))}>
               Crear cuenta
             </Link>
           </nav>
@@ -37,17 +34,14 @@ function LandingPage() {
           Inteligencia analítica para almacenes y despensas
         </h1>
         <p className="max-w-xl text-sm text-muted-foreground text-balance sm:text-base">
-          Registrá ventas, stock y clientes. Detectá patrones, anticipá
-          faltantes y tomá decisiones basadas en datos, no en intuición.
+          Registrá ventas, stock y clientes. Detectá patrones, anticipá faltantes y tomá decisiones
+          basadas en datos, no en intuición.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <Link to="/signup" className={cn(buttonVariants({ size: "lg" }))}>
+          <Link to="/signup" className={cn(buttonVariants({ size: 'lg' }))}>
             Empezar gratis
           </Link>
-          <Link
-            to="/login"
-            className={cn(buttonVariants({ size: "lg", variant: "outline" }))}
-          >
+          <Link to="/login" className={cn(buttonVariants({ size: 'lg', variant: 'outline' }))}>
             Ya tengo cuenta
           </Link>
         </div>

@@ -52,7 +52,7 @@ function BranchSelector() {
         render={
           <Button variant="ghost" size="sm">
             <BuildingsIcon className="size-4" />
-            <span>{currentBranch?.name ?? 'Elegir sucursal'}</span>
+            <span>{currentBranch?.name ?? 'Sin sucursal'}</span>
             <CaretDownIcon className="size-3" />
           </Button>
         }

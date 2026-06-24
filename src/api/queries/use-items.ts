@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type UseQueryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import type { paths } from '@/api/types';
 import { itemKeys } from '@/lib/query-keys';
@@ -13,6 +13,7 @@ type ItemsListResponse = NonNullable<
   paths['/api/v1/items']['get']['responses']['200']['content']['application/json']
 >;
 export type ItemListRow = ItemsListResponse['data']['data'][number];
+export type ItemsList = { data: ItemListRow[]; meta: ItemsListResponse['data']['meta'] };
 
 type ItemResponse = NonNullable<
   paths['/api/v1/items/{id}']['get']['responses']['200']['content']['application/json']
@@ -47,8 +48,11 @@ type BarcodeResponse = NonNullable<
 >;
 export type BarcodeLookupResult = BarcodeResponse['data'];
 
-export function useItems(query: Partial<ListItemsQuery> = {}) {
-  return useQuery({
+export function useItems(
+  query: Partial<ListItemsQuery> = {},
+  options?: Pick<UseQueryOptions<ItemsList>, 'enabled'>,
+): ReturnType<typeof useQuery<ItemsList>> {
+  return useQuery<ItemsList>({
     queryKey: itemKeys.list(query),
     queryFn: async () => {
       const { data, error } = await api.GET('/api/v1/items', {
@@ -57,6 +61,7 @@ export function useItems(query: Partial<ListItemsQuery> = {}) {
       if (error || !data) throw error ?? new Error('Failed to fetch items');
       return data.data;
     },
+    ...options,
   });
 }
 
