@@ -17,6 +17,19 @@ export const itemKeys = {
   list: (q: object) => [...itemKeys.lists(), q] as const,
   details: () => [...itemKeys.all, 'detail'] as const,
   detail: (id: string) => [...itemKeys.details(), id] as const,
+  barcode: (code: string) => [...itemKeys.all, 'barcode', code] as const,
+  stock: (id: string) => [...itemKeys.all, 'stock', id] as const,
+};
+
+export const itemCategoryKeys = {
+  all: ['item-categories'] as const,
+  lists: () => [...itemCategoryKeys.all, 'list'] as const,
+  list: (q: object) => [...itemCategoryKeys.lists(), q] as const,
+};
+
+export const unitKeys = {
+  all: ['units'] as const,
+  list: () => [...unitKeys.all, 'list'] as const,
 };
 
 export const customerKeys = {

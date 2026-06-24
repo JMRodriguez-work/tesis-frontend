@@ -981,7 +981,7 @@ src/components/ui/
 ├── label.tsx
 ├── dialog.tsx
 ├── dropdown-menu.tsx
-├── select.tsx
+├── combobox.tsx
 ├── textarea.tsx
 ├── checkbox.tsx
 ├── table.tsx
@@ -998,6 +998,56 @@ Reglas:
 - **Componentes compound** (como `Dialog.Header`, `Dialog.Title`) van en el mismo archivo del componente padre, NO en archivos separados. Ej: `Dialog.Header` y `Dialog.Title` viven en `dialog.tsx`.
 - **Props del componente**: `camelCase` (`onClick`, `isOpen`, `children`). Las props de primitives de shadcn/Base UI se mantienen en camelCase nativo de React.
 - **Ref forwarding** cuando se use con react-hook-form (`forward_ref` solo si es necesario; React 19 ya tiene `ref` como prop normal, no necesita `forwardRef`).
+
+#### 12.0.1 Selección con opciones: `Combobox`, nunca `Select`
+
+**No usar `Select` de Base UI para nada.** El wrapper `<Select>` quedó deprecated en favor de `<ComboboxField>` (definido en `src/components/ui/combobox.tsx`).
+
+Razones:
+
+1. **Accesibilidad**: `Select` de Base UI no incluye un input de búsqueda por default, y nuestro wrapper `ComboboxField` ya integra label visible, popup con filtrado por typing, y un botón de clear — todo WCAG-compliant out-of-the-box.
+2. **Sin magic values**: `Combobox` acepta `null` como "ningún valor seleccionado" (no necesitamos `'all'`, `'none'`, `''` ni similares para representar ausencia de valor).
+3. **UX consistente**: todo el proyecto tiene el mismo look & feel. No hay un `<Select>` para filtros y un `<Combobox>` para forms.
+
+**API del wrapper** (`src/components/ui/combobox.tsx`):
+
+```typescript
+import { ComboboxField, type ComboboxItem } from '@/components/ui/combobox';
+
+type ComboboxItem = { label: string; value: string | null };
+
+<ComboboxField
+  id="categoryId"              // opcional, se genera con useId() si se omite
+  label="Categoría"            // REQUERIDO, siempre visible
+  items={categoryItems}        // ComboboxItem[]
+  value={watch('categoryId') ?? null}  // string | null
+  onValueChange={(v) => setValue('categoryId', v ?? undefined)}
+  placeholder="Sin categoría"  // opcional
+  emptyMessage="Sin resultados"  // opcional
+  className="w-56"             // opcional, ancho del contenedor
+/>
+```
+
+**Convenciones de los items:**
+
+- El `label` es lo que ve el user. **Siempre legible, humano**, en es-AR. Nunca `cat.id` ni códigos.
+- El `value` es lo que se persiste. Preferentemente `string` (UUID, slug, código). **Nunca** mostrar el `id` al user.
+- Para representar "ningún valor", usar `value: null` con un `label` que diga "— Sin categoría —" o "— Ninguno —". El combobox lo trata como un item normal; el handler recibe `null` y vos hacés el mapping (`v ?? undefined`).
+- `items` se computa con `useMemo` para no recrear el array en cada render:
+
+```typescript
+const categoryItems: ComboboxItem[] = useMemo(
+  () => [
+    { label: '— Sin categoría —', value: null },
+    ...(categories?.map((cat) => ({ label: cat.name, value: cat.id })) ?? []),
+  ],
+  [categories],
+);
+```
+
+**Labels siempre visibles**: el `label` es requerido. No usar solo el `placeholder` del trigger (los screen readers no anuncian placeholders como labels). Si el filtro es "Buscar", poner un `<label htmlFor="...">Buscar</label>` arriba del `<Input>` aunque el `<Input>` no tenga prop `label`.
+
+**Para `<Input>` de filtros que no son combobox**: envolver en un `<div className="flex flex-col gap-1.5">` con un `<label htmlFor="...">` adentro, igual que `ComboboxField` lo hace internamente. Mantener consistencia visual.
 
 ```bash
 # Agregar un primitive

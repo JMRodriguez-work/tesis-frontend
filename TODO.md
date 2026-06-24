@@ -163,15 +163,61 @@
 - E2E con back: sign-up → onboarding → GET `/api/v1/branches` → 1 branch; POST nueva branch → 2 branches; GET → 2 branches. Shape matchea el `paths` generado.
 - Front sirve HTTP 200 en `/`, `/login`, `/signup`, `/onboarding`, `/dashboard`, `/settings/branches`.
 
-### 1.2 Items — HU-005, HU-006, HU-007, HU-008
-- [ ] `src/lib/schemas/item.ts` con `createItemSchema`, `updateItemSchema`, `listItemsQuerySchema` (page, limit, search, categoryId, branchId)
-- [ ] `src/api/queries/use-items.ts`: `useItems(query)`, `useItem(id)`, `useLookupItemByBarcode(code)`, `useCreateItem()`, `useUpdateItem()`, `useDeleteItem()`
-- [ ] `src/routes/_authed/items/index.tsx`: lista paginada con `<DataTable>` (sortable por `name`, `code`, `salePrice`), search debounced (300ms), filtro por categoría, filtro por branch
-- [ ] `src/routes/_authed/items/new.tsx`: form con RHF + Zod, inputs `name`, `code`, `barcode` (con botón "leer código de barras" — placeholder, scanner HW en Sprint 4), `purchasePrice`, `salePrice`, `categoryId` (Select), `baseUnitId` (Select), `branchId`
-- [ ] `src/routes/_authed/items/$itemId/index.tsx`: detail con datos + `useItemStock(itemId)` (vista de stock por warehouse) + historial de movimientos
-- [ ] `src/routes/_authed/items/$itemId/edit.tsx`: form prellenado con `useItem(id)`, mismo shape que `new`
-- [ ] `pricing warning` (HU-005): si `salePrice < purchasePrice`, mostrar warning inline en el form antes de submit, pero permitir submit (no es error duro, ver back §4.1)
-- [ ] RoleGuard: Admin/Manager para create/update/delete. Employee solo lectura + `lookupItemByBarcode`
+### 1.2 Items — HU-005, HU-006, HU-007, HU-008 ✅ cerrada
+- [x] `src/lib/schemas/item.ts` con `createItemSchema`, `updateItemSchema`, `listItemsQuerySchema`, `updateMinStockSchema`
+- [x] `src/api/queries/use-items.ts` con `useItems`, `useItem`, `useLookupItemByBarcode`, `useItemStock`, `useCreateItem`, `useUpdateItem`, `useDeleteItem`, `useUpdateMinStock` (tipados con `paths`)
+- [x] `src/api/queries/use-item-categories.ts` con `useItemCategories` (mock-friendly, ya apunta al back)
+- [x] `src/api/queries/use-units.ts` con `useUnits` (Fase 1.4 anticipado, `staleTime: Infinity`)
+- [x] `src/lib/query-keys.ts`: `itemKeys` (con `barcode` y `stock` sub-keys), `itemCategoryKeys`, `unitKeys`
+- [x] **DataTable genérico** (server-side via TanStack Query, no client-side):
+  - `src/components/data-table/data-table.tsx` (genérico, `useReactTable` con `manualPagination: true`)
+  - `src/components/data-table/pagination.tsx`
+  - `src/components/data-table/column-defs.tsx` (helpers: `textColumn`, `badgeColumn`, `dateColumn`, `currencyColumn`, `actionsColumn`)
+  - Skeleton y empty state inline en `<DataTable>` (no necesitaron archivo separado)
+- [x] `src/components/ui/alert.tsx` (primitive nuevo, 4 variants: `default|warning|destructive|success`)
+- [x] `src/components/items/pricing-warning.tsx` (HU-005)
+- [x] `src/components/items/item-status-badge.tsx`
+- [x] `src/components/items/edit-min-stock-dialog.tsx`
+- [x] `src/routes/_authed/items/index.tsx` (lista con search debounced, filtros por categoría y showInactive, paginación)
+- [x] `src/routes/_authed/items/new.tsx` (form con RHF + Zod, scanner placeholder, pricing warning inline + post-submit)
+- [x] `src/routes/_authed/items/$itemId/index.tsx` (detail con stock por warehouse + edit min stock)
+- [x] `src/routes/_authed/items/$itemId/edit.tsx` (form prellenado vía `reset()`, mismo shape que `new`)
+
+**Notas de cierre 1.2:**
+
+**Lo que se hizo**:
+- **DataTable genérico reusable** (F0). Decisión: **server-side** via TanStack Query + search params del router. El cliente NO usa `getSortedRowModel` ni `getFilteredRowModel` ni `getPaginationRowModel` (todo eso es client-side, sería incorrecto para listas con miles de items). Solo `getCoreRowModel` para que `flexRender` funcione con headers/cells. Sorting se hace server-side en el back (no hay params de sort en Sprint 1 — refactor en 1.10 si se pide).
+- **DataTable skeleton con key estable**: Biome lint rechaza `key={i}` (`noArrayIndexKey`). La fix es interpolar el index en un prefix estable (`key={\`skeleton-row-${String(rowIdx)}\`}`). Para las celdas, usa `col.id` que es estable.
+- **Pricing warning doble**: inline en el form (derivado del state watched, no `useEffect` — AGENTS §2.1.2) + post-submit del response del back. El del back es la fuente de verdad (puede traer info extra como los precios exactos).
+- **Admin vs Manager/Employee**:
+  - Admin: `useCurrentBranchId()` del store; si no hay branch activa, el form se deshabilita con un `<Alert>` arriba.
+  - Admin: `POST /items` requiere `branchId` en el body (back valida 400 si falta). El front lo manda siempre.
+  - Manager/Employee: NO mandan `branchId` (el back fuerza `user.branchId`).
+  - El botón "Nuevo item" y "Editar" se ocultan para Employee (no pueden crear/modificar). "Eliminar" también.
+- **Scanner barcode = placeholder** (Sprint 4 lo conecta): botón con `toast.info('Scanner no disponible en MVP')`. El hook `useLookupItemByBarcode` ya está listo para cuando se conecte.
+- **Categorías mockeadas**: el `<Select>` consume `useItemCategories({ branchId, isActive: true })` que ya apunta al back. Cuando se implemente Sprint 1.3, las categorías aparecerán automáticamente.
+- **Units hardcoded-data**: el `<Select>` consume `useUnits()` que llama a `GET /api/v1/units` con `staleTime: Infinity` (units son globales, no cambian en runtime). El back tiene 7 units predefinidas (kg, g, litro, ml, docena, caja, unidad).
+- **PricingWarning en la detail page**: si el back devuelve `warning` en el response de `GET /items/{id}` (porque el item tiene `salePrice < purchasePrice`), se muestra en la sección "Información general". El back siempre lo manda si aplica.
+
+**Decisiones de implementación**:
+- **ZodResolver + `Resolver<FormValues>` cast**: el tipo del `useForm<FormValues>` requiere que `name` y `isActive` sean required. El `zodResolver(createItemSchema)` infiere tipos donde `name: string` (required) y `isActive: boolean` (optional con default). Mismatch TS → uso `zodResolver(createItemSchema) as Resolver<FormValues>`. La forma idiomática es derivar `FormValues` de `z.infer<typeof createItemSchema>` pero eso rompería el default `isActive: true` del form. Cast controlado, documentado.
+- **`useForm` + `reset()` en edit**: el form de edit no se puede inicializar con `defaultValues` desde `useItem(id)` porque el query es async. Patrón: `defaultValues` mínimos en el `useForm`, después `useEffect(() => reset(...), [itemData])` cuando el query resuelve. AGENTS §2.1.2: `useEffect` justificado por external sync (TanStack Query → RHF state).
+- **RHF + `setValue` con `value: string | null` del Select de Base UI**: el callback de `onValueChange` da `string | null`. Necesito `!value || value === 'none' ? undefined : value` para normalizar a `undefined` cuando se selecciona "Sin categoría". Documentado inline.
+- **Paginator server-side**: `<DataTable>` recibe `meta: { page, limit, total, totalPages }` y `onPageChange`. No se renderiza si `totalPages <= 1` (UX: en una página, no hay controles).
+- **Empty state sin "Nuevo item" para Employee**: el `emptyAction` es condicional al role. Si el user es Employee, no muestra el botón "Crear item" en el empty state.
+- **Stock por warehouse inline en la detail**: tabla HTML (no `<DataTable>`) porque son 3-4 columnas fijas y no necesita paginación. Sprint 2.3 va a meter el historial de movimientos con `<DataTable>`.
+
+**Bugs encontrados**:
+- **No bugs del front**. El back está OK (verificado con curl en F10).
+- **E2E con curl**: el user Admin (post-onboarding, sin `branchId` en el user) necesita mandar `branchId` en el body de `POST /items`. Si no, 400 "Debes indicar branchId en el body". El front lo hace bien: `body.branchId = useCurrentBranchId()` para Admin. Manager/Employee NO mandan (back fuerza su branch). Es coherente con back §3 y §1.6.
+
+**Verificación**:
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (items chunk: 68.60KB gz 19.55KB; bundle total del shell: 442KB gz 133KB)
+- `pnpm run lint` ✅ (1 info deprecation Biome 2.5 no bloqueante; biome check sobre 91 archivos)
+- `pnpm run routes:gen` ✅ (3 rutas nuevas detectadas: `/items/new`, `/items/$itemId`, `/items/$itemId/edit`)
+- E2E con back: sign-up → onboarding → POST 3 items con `branchId` → 201 → GET items → 200 con 3 → search → 200 con matches → POST item con `salePrice < purchasePrice` → 201 con `warning` en el response → POST duplicado → 409 con mensaje del back → GET detail → 200 → GET stock → 200 (vacío) → PATCH min-stock → 200 → PUT edit → 200 → DELETE → 200 → GET items con `isActive=false` → 200 con 3 inactivos (soft delete funciona).
+- Front sirve HTTP 200 en `/items`, `/items/new`, `/items/{id}`, `/items/{id}/edit`.
 
 ### 1.3 Item Categories
 - [ ] `src/lib/schemas/category.ts` con `createCategorySchema`, `updateCategorySchema`
@@ -441,7 +487,7 @@
 | Fase | HU cubiertas (back) | % back con UI | Estado |
 |------|---------------------|----------------|--------|
 | Fase 0 — Fundación | Setup, auth, infra | 100% | ✅ cerrada (0.1, 0.2, 0.3, 0.4) |
-| Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 1/10 sub-secciones (branch context) | ⏳ en progreso |
+| Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 2/10 sub-secciones (branch context + items) | ⏳ en progreso |
 | Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 0% | ⏳ pendiente |
 | Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 0% | ⏳ pendiente |
 | Fase 4 — Pulido | Polish + a11y + perf + role security | 0% | ⏳ pendiente |

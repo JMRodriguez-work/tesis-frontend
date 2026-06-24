@@ -4,7 +4,7 @@ import { AppShell } from '@/components/layout/app-shell';
 import { BranchHydrator } from '@/components/layout/branch-hydrator';
 import { authKeys } from '@/lib/query-keys';
 
-const Route = createFileRoute('/_authed/route')({
+const Route = createFileRoute('/_authed')({
   beforeLoad: async ({ context, location }) => {
     const me = await context.queryClient.fetchQuery({
       queryKey: authKeys.me(),
