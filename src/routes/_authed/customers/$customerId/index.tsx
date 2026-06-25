@@ -211,10 +211,19 @@ function CustomerDetailPage() {
         </dl>
       </section>
 
-      <section className="rounded-lg border border-dashed border-border bg-card/50 p-4 text-xs text-muted-foreground">
-        La segmentación del cliente (vip / frequent / occasional / new / inactive / dormant) se
-        mostrará cuando esté implementada (Sprint 3.3, HU-025/026).
-      </section>
+      <Alert variant="default">
+        <AlertDescription>
+          La segmentación del cliente (vip / frequent / occasional / new / inactive / dormant) está
+          disponible en{' '}
+          <Link
+            to="/customers/segments"
+            className="font-medium text-foreground underline-offset-2 hover:underline"
+          >
+            Segmentación de clientes
+          </Link>
+          . Buscá este cliente por nombre para ver su segmento.
+        </AlertDescription>
+      </Alert>
 
       <section className="flex flex-col gap-3">
         <div className="flex items-end justify-between gap-2">

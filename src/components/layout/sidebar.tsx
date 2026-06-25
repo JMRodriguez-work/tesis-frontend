@@ -2,6 +2,7 @@ import {
   ArrowsLeftRightIcon,
   BellIcon,
   BellRingingIcon,
+  ChartBarIcon,
   ChartLineUpIcon,
   ClipboardTextIcon,
   GearIcon,
@@ -53,6 +54,11 @@ const OPERATION_LINKS: NavLink[] = [
     to: '/customers',
     label: 'Clientes',
     icon: <UsersIcon className="size-4" />,
+  },
+  {
+    to: '/customers/segments',
+    label: 'Segmentación',
+    icon: <ChartBarIcon className="size-4" />,
   },
   {
     to: '/warehouses',

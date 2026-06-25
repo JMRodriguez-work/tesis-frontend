@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { useMe } from '@/api/queries/use-auth';
 import { type Customer, useCustomers } from '@/api/queries/use-customers';
+import { DetectInactiveButton } from '@/components/customer-analytics/detect-inactive-button';
 import { CustomerCreateDialog } from '@/components/customers/customer-create-dialog';
 import { CustomerDeleteDialog } from '@/components/customers/customer-delete-dialog';
 import { CustomerEditDialog } from '@/components/customers/customer-edit-dialog';
@@ -161,10 +162,15 @@ function CustomersPage() {
           ) : null}
         </div>
         {canEdit && !showBranchWarning ? (
-          <Button onClick={() => setCreateOpen(true)}>
-            <PlusIcon className="size-4" />
-            Nuevo cliente
-          </Button>
+          <div className="flex items-center gap-2">
+            {role === 'Admin' || role === 'Manager' ? (
+              <DetectInactiveButton branchId={adminBranchId} variant="outline" />
+            ) : null}
+            <Button onClick={() => setCreateOpen(true)}>
+              <PlusIcon className="size-4" />
+              Nuevo cliente
+            </Button>
+          </div>
         ) : null}
       </header>
 

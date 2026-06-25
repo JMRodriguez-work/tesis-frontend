@@ -132,3 +132,14 @@ export const reportKeys = {
   topItems: (q: object) => [...reportKeys.all, 'top-items', q] as const,
   categoryDistribution: (q: object) => [...reportKeys.all, 'category-distribution', q] as const,
 };
+
+export const customerSegmentKeys = {
+  all: ['customer-segments'] as const,
+  lists: () => [...customerSegmentKeys.all, 'list'] as const,
+  list: (q: object) => [...customerSegmentKeys.lists(), q] as const,
+};
+
+export const customerAnalyticsKeys = {
+  all: ['customer-analytics'] as const,
+  detectInactive: () => [...customerAnalyticsKeys.all, 'detect-inactive'] as const,
+};

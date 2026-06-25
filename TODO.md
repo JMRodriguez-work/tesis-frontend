@@ -1146,11 +1146,62 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 - **Layout "sections apiladas independientes"** — para páginas con múltiples visualizaciones que necesitan filtros independientes. Alternativa a tabs cuando cada chart tiene su propio state.
 
 ### 3.3 Customer Analytics — HU-025, HU-026
-- [ ] `src/api/queries/use-customer-analytics.ts`: `useDetectInactiveCustomers()` (mutation, enqueue), `useCustomerSegments({ branchId })`, `useInactiveCustomersList({ branchId })`
-- [ ] Botón "Detectar clientes inactivos" en `/customers` (Admin/Manager): dispara `useDetectInactiveCustomers.mutate({ days: 60 })` → toast con `jobId` + nota "El proceso corre en background, las recomendaciones aparecerán en breve"
-- [ ] `src/routes/_authed/customers/segments.tsx`: lista de customers agrupados por segment (vip, frequent, occasional, new, inactive, dormant) con count y umbrales visibles
-- [ ] Filtros por branch (admin) y por segment
-- [ ] RoleGuard: Admin/Manager para disparar el job, todos lectura
+- [x] `src/api/queries/use-customer-analytics.ts`: `useDetectInactiveCustomers()` (mutation, enqueue), `useCustomerSegments({ branchId, segment, page, limit })`
+- [x] Botón "Detectar clientes inactivos" en `/customers` (Admin/Manager): dispara `useDetectInactiveCustomers.mutate({ days: 60 })` → toast con `jobId` + nota "Los resultados aparecerán al refrescar"
+- [x] `src/routes/_authed/customers/segments.tsx`: lista de customers segmentados con su `<SegmentBadge>` (vip, frequent, occasional, new, inactive, dormant) + `<SegmentSummaryGrid>` con conteos por segmento
+- [x] Filtros: por segment (`<ComboboxField>` con 6 valores + "Todos")
+- [x] RoleGuard: Admin/Manager para disparar el job, todos lectura (botón se oculta según rol)
+
+**Notas de cierre 3.3:**
+
+**Lo que se hizo:**
+- **2 hooks** en `src/api/queries/use-customer-analytics.ts`:
+  - `useCustomerSegments({ page, limit, segment, branchId }, options?)` con `enabled: role !== 'Admin' || !!currentBranchId`. Scope-by-branch. `as never` en el query (mismo patrón que 1.8/1.9/2.2/2.3/3.1/3.2).
+  - `useDetectInactiveCustomers()` mutation. **`onSuccess` invalida 3 query keys**:
+    - `dashboardKeys.inactiveCustomers({})` — refresca la card del dashboard.
+    - `recommendationKeys.lists()` — refresca la lista de recommendations (las nuevas `retention` aparecerán al refetch).
+    - `notificationKeys.unread({})` — refresca la campana del topbar.
+    El back devuelve 202 con `{ jobId, status: 'queued', queueName: 'tfg-analytics' }`. No hay endpoint de polling del job — el back NO lo expone. Toast.success con el `jobId` (recortado a 8 chars para legibilidad) y copy "Los resultados aparecerán al refrescar."
+- **Query keys** (`src/lib/query-keys.ts`): `customerSegmentKeys` (separado de `customerKeys` que es el CRUD) + `customerAnalyticsKeys` (para la mutation).
+- **1 schema file** (`src/lib/schemas/customer-analytics.ts`): `customerSegmentSchema` enum, `detectInactiveCustomersSchema` con `days` (1-365, default 60), `listCustomerSegmentsQuerySchema` con `page/limit/segment`.
+- **4 componentes nuevos** en `src/components/customer-analytics/`:
+  - `segment-badge.tsx` — `<Badge>` con 6 variants + iconos de phosphor. Sigue el patrón de `recommendation-type-badge.tsx` (config object + lookup). Variants: VIP (default, CrownIcon), Frecuente (default, RepeatIcon), Ocasional (secondary, ClockCounterClockwiseIcon), Nuevo (outline, UserPlusIcon), Inactivo (destructive, UserCircleMinusIcon), Dormido (destructive, UserCirclePlusIcon).
+  - `segment-summary-grid.tsx` — 6 mini-cards (1 por segmento) con counts. Computa del array de la página actual (no del total). Disclaimer visible: "Conteos aproximados de la página actual (no del total de la organización)". Si el count es 0, la card se atenúa (`opacity-50`).
+  - `detect-inactive-customers-dialog.tsx` — `<Dialog>` con `<Input type="number">` para `days`, validación Zod, submit → mutation. Copy: "Esta acción analiza las compras de la sucursal activa y crea recomendaciones de tipo 'Retención' para los clientes que no compran hace N días. El proceso corre en background; los resultados aparecerán al refrescar." Botón "Detectar" deshabilitado durante `isPending`. Patrón `useForm` + `zodResolver` consistente con el resto del proyecto.
+  - `detect-inactive-button.tsx` — botón reusable que abre el dialog. Props: `branchId?`, `variant`, `size`, `label`, `className`. Usado en 2 call sites: `/customers` (variant="outline") y `/customers/segments` (variant="outline" también). Razón para componente separado: encapsula el state `open/close` y permite reuso sin duplicar lógica.
+- **1 página nueva** (`src/routes/_authed/customers/segments.tsx`): header con título + `<DetectInactiveButton>`, `<SegmentSummaryGrid>`, filtro de segmento, `<DataTable>` paginado. `validateSearch` con `page` y `segment`. Empty state: "Asegurate de tener ventas registradas para que el back pueda segmentar a tus clientes."
+- **3 ediciones**:
+  - `src/routes/_authed/customers/index.tsx` — botón "Detectar inactivos" agregado en el header (a la izquierda de "Nuevo cliente"). Solo visible para Admin/Manager.
+  - `src/components/layout/sidebar.tsx` — nuevo link "Segmentación" con icono `ChartBarIcon` en la sección "Operación", entre "Clientes" y "Depósitos".
+  - `src/routes/_authed/customers/$customerId/index.tsx` — el `<Alert>` placeholder del sprint 1.9 ("Sprint 3.3, HU-025/026") se reemplazó por un link a `/customers/segments` con copy "Buscá este cliente por nombre para ver su segmento". El detail del customer NO muestra el segmento del customer (el back no lo expone en `/customers/{id}`).
+
+**Decisiones de implementación:**
+- **`<SegmentSummaryGrid>` computa del array de la página actual**: el back no expone un endpoint dedicado de "count por segment" (sería un endpoint extra con lógica de agregación). Computar client-side es más simple y suficiente para MVP. El disclaimer deja claro que las cifras son aproximadas. Si en el futuro se quiere exactitud, pedir al back un endpoint `GET /customer-analytics/segment-counts`.
+- **No polling del job**: el back devuelve 202 con `jobId` pero NO expone `GET /jobs/{jobId}`. Decidido en planning: "toast + refetch manual". El `qc.invalidateQueries` se dispara en el `onSuccess` para que la próxima vez que se monte cualquier componente que use esas keys, los datos estén frescos.
+- **Sin scope-by-branch explícito en el form del detect dialog**: el `branchId` se pasa como prop al `<DetectInactiveButton>` desde el call site (que conoce su branch via `useCurrentBranchId()`). El dialog no sabe del branch. Decisión: el componente es agnóstico al contexto.
+- **`useDetectInactiveCustomers` con `branchId` opcional**: si Admin no tiene branch activa, igual puede disparar el job (el back infiere la branch del user). Si Admin quiere un branch específico (cross-branch), lo pasa explícito. En el MVP, el `<DetectInactiveButton>` pasa `adminBranchId` (que es `undefined` si no hay branch activa); el back ignora el param y usa la branch del user.
+- **Sidebar link separado "Segmentación"** (no anidado bajo "Clientes"): el sub-menú anidado bajo "Clientes" sería más complejo (requeriría un SidebarMenuSub como el de "Configuración"). Decisión: entry separado al mismo nivel que "Clientes" y "Depósitos". YAGNI para sub-items.
+- **Variant `destructive` para "dormant" e "inactive"** (mismo color, distinto ícono): ambos son segmentos negativos. Si en el futuro se quiere distinguirlos visualmente, se puede agregar un variant nuevo al shadcn badge. Por ahora el ícono (`UserCircleMinusIcon` vs `UserCirclePlusIcon`) los distingue.
+
+**Discrepancias con el plan original del TODO:**
+- "`useCustomerSegments` con `branchId`" → el back ya acepta `branchId` como filter; el front lo pasa via `useCurrentBranchId()` (scope-by-branch).
+- "`useInactiveCustomersList`" → **no se creó**. El back NO expone este endpoint. El listado de "clientes inactivos" se obtiene vía `/dashboard/inactive-customers` (que ya consume el sprint 3.1) o filtrando `/customers/segments?segment=inactive|dormant`. Decisión: el usuario puede ir a `/customers/segments?segment=inactive` (o `dormant`) para verlos con sus segmentos.
+- "Agrupados por segment con count y umbrales visibles" → implementado como `<SegmentSummaryGrid>` (6 cards inline) + tabla. Los "umbrales" (reglas de qué define cada segmento) NO se exponen — el back no los devuelve. YAGNI pedir un endpoint de "reglas de segmentación".
+- "Filtros por branch (admin)" → scope-by-branch automático. No hay ComboboxField de branch en la page.
+- "RoleGuard" → no se usa `<RoleGuard>`. El botón se oculta según rol (Admin/Manager pueden disparar; Employee solo lectura).
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (chunk `segments`: 26.14 KB gz 7.84 KB; shell: 458.07 KB gz 137.69 KB)
+- `pnpm run lint` ✅ (6 archivos auto-formateados por Biome en este sprint, 1 info preexistente)
+- `pnpm run routes:gen` ✅ (ruta `/customers/segments` detectada)
+- E2E con back: `POST /customer-analytics/detect-inactive` con `{ days: 60 }` → 202 con `jobId: '43291755-...'`, `status: 'queued'`, `queueName: 'tfg-analytics'`. `GET /customers/segments` → 200 con `{ data: [], meta: { page: 1, limit: 20, total: 0, totalPages: 0 } }`. Filtros `?segment=vip`, `?limit=5`, `?branchId=...` también responden 200. Front sirve HTTP 200 en `/customers/segments` y `/customers`.
+
+**Patrones nuevos para reusar en próximos sprints:**
+- **`<DetectInactiveButton>` como wrapper reutilizable** — patrón para componentes con state local (open/close) que se usan en múltiples call sites. Encapsula el state y permite a las pages usarlo sin duplicar lógica.
+- **`<SegmentSummaryGrid>` (grid de mini-cards con counts computados del array actual)** — patrón para mostrar "conteos de la página actual" sin pedir un endpoint extra. Disclaimer visible para que el user entienda que es aproximado.
+- **Mutation con invalidación cross-cutting multi-key** (`useDetectInactiveCustomers.onSuccess`) — patrón para mutations que afectan múltiples áreas del producto (dashboard + recommendations + notifications). Documentado inline. Reusable para cualquier future mutation que cree recommendations.
+- **Toast.success con `description` (jobId en este caso)** — patrón para feedback de jobs async cuando no hay polling. El jobId acortado a 8 chars es suficiente para debugging.
 
 ### 3.4 External Data — HU-030, HU-031
 - [ ] `src/api/queries/use-external-data.ts`: `useExternalDataSources({ isActive, type })`, `useExternalDataSource(id)`, `useCreateSource()`, `useUpdateSource()`, `useDeleteSource()`, `useEnqueueFetch()`
@@ -1265,7 +1316,7 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 | Fase 0 — Fundación | Setup, auth, infra | 100% | ✅ cerrada (0.1, 0.2, 0.3, 0.4) |
 | Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 7/10 sub-secciones (branch context, items, categories, units, branches, users, org) | ⏳ en progreso |
 | Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 4/10 sub-secciones (provider-orders, stock-movements, sales, recommendations) | ⏳ en progreso |
-| Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 2/5 sub-secciones (dashboard 3.1, reports 3.2) | ⏳ en progreso |
+| Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 3/5 sub-secciones (dashboard 3.1, reports 3.2, customer-analytics 3.3) | ⏳ en progreso |
 | Fase 4 — Pulido | Polish + a11y + perf + role security | 0% | ⏳ pendiente |
 | Fase 5 — Deploy | Pages + CORS prod | 0% | ⏳ pendiente |
 
