@@ -26,6 +26,7 @@ type DataTableProps<T> = {
   emptyDescription?: string;
   emptyAction?: React.ReactNode;
   skeletonRows?: number;
+  caption?: string;
 };
 
 function DataTable<T>({
@@ -40,6 +41,7 @@ function DataTable<T>({
   emptyDescription = 'No hay datos para mostrar.',
   emptyAction,
   skeletonRows = 5,
+  caption,
 }: DataTableProps<T>) {
   const table = useReactTable<T>({
     data,
@@ -50,8 +52,8 @@ function DataTable<T>({
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border border-border">
-        <Table>
+      <div className="rounded-lg border border-border" aria-busy="true">
+        <Table aria-label={caption ?? 'Cargando datos'}>
           <TableHeader>
             <TableRow>
               {columns.map((col) => (
@@ -91,7 +93,8 @@ function DataTable<T>({
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-lg border border-border">
-        <Table>
+        <Table aria-label={caption}>
+          {caption ? <caption className="sr-only">{caption}</caption> : null}
           <TableHeader>
             <TableRow>
               {table

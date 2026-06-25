@@ -1,7 +1,6 @@
 import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
+import type { DataTableMeta } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
-
-type DataTableMeta = { page: number; limit: number; total: number; totalPages: number };
 
 type PaginationProps = {
   meta: DataTableMeta;
@@ -15,8 +14,8 @@ function Pagination({ meta, onPageChange }: PaginationProps) {
   const end = Math.min(meta.page * meta.limit, meta.total);
 
   return (
-    <div className="flex items-center justify-between">
-      <p className="text-xs text-muted-foreground">
+    <nav className="flex items-center justify-between" aria-label="Paginación">
+      <p className="text-xs text-muted-foreground" aria-live="polite">
         Mostrando {start}–{end} de {meta.total}
       </p>
       <div className="flex items-center gap-2">
@@ -25,6 +24,7 @@ function Pagination({ meta, onPageChange }: PaginationProps) {
           size="sm"
           onClick={() => onPageChange(meta.page - 1)}
           disabled={isFirst}
+          aria-label="Página anterior"
         >
           <CaretLeftIcon className="size-3" />
           Anterior
@@ -37,14 +37,14 @@ function Pagination({ meta, onPageChange }: PaginationProps) {
           size="sm"
           onClick={() => onPageChange(meta.page + 1)}
           disabled={isLast}
+          aria-label="Página siguiente"
         >
           Siguiente
           <CaretRightIcon className="size-3" />
         </Button>
       </div>
-    </div>
+    </nav>
   );
 }
 
-export type { DataTableMeta };
 export { Pagination };

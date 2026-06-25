@@ -8,7 +8,12 @@ import { type CustomerSale, useCustomer, useCustomerSales } from '@/api/queries/
 import { CustomerDeleteDialog } from '@/components/customers/customer-delete-dialog';
 import { CustomerEditDialog } from '@/components/customers/customer-edit-dialog';
 import { CustomerStatusBadge } from '@/components/customers/customer-status-badge';
-import { currencyColumn, dateColumn, textColumn } from '@/components/data-table/column-defs';
+import {
+  currencyColumn,
+  dateColumn,
+  numberColumn,
+  textColumn,
+} from '@/components/data-table/column-defs';
 import { DataTable } from '@/components/data-table/data-table';
 import { ErrorState } from '@/components/feedback/error-state';
 import { Skeleton } from '@/components/feedback/skeleton';
@@ -79,12 +84,7 @@ function CustomerDetailPage() {
     () => [
       dateColumn<CustomerSale>('Fecha', 'createdAt', true),
       textColumn<CustomerSale>('Sucursal', 'branchName'),
-      {
-        id: 'itemCount',
-        header: 'Items',
-        accessorFn: (row) => row.itemCount,
-        cell: ({ getValue }) => String(getValue() ?? 0),
-      },
+      numberColumn<CustomerSale>('Items', 'itemCount'),
       currencyColumn<CustomerSale>('Total', 'total'),
       {
         id: 'status',

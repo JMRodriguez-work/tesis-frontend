@@ -589,14 +589,65 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 
 **Beneficio cross-sprint:** todos los sprints anteriores (1.2 a 1.8) que usen `mapApiError(err).message` en toasts ahora muestran mensajes legibles en lugar de "Error desconocido" cuando el back devuelve un 400 de validación Zod. No hace falta tocar ninguno de esos call sites.
 
-### 1.10 DataTable genérico (reusable)
-- [ ] `src/components/data-table/data-table.tsx` con `useReactTable` + TanStack Table v8
-- [ ] Soporta: `data: T[]`, `columns: ColumnDef<T>[]`, `meta: { page, limit, total, totalPages }`, `onPageChange`, `onSortChange`, `onSearchChange` (server-side)
-- [ ] `src/components/data-table/pagination.tsx` (paginación con `meta`)
-- [ ] `src/components/data-table/column-def.ts` con helpers (`textColumn`, `badgeColumn`, `dateColumn`, `actionsColumn`)
-- [ ] Loading state: `<Skeleton>` mientras `isLoading`
-- [ ] Empty state: `<EmptyState>` si `data.length === 0`
-- [ ] Error state: `<ErrorState onRetry={refetch} />` si `error`
+### 1.10 DataTable genérico (reusable) ✅ cerrada
+- [x] `src/components/data-table/data-table.tsx` con `useReactTable` + TanStack Table v8 + `manualPagination: true`
+- [x] Soporta: `data: T[]`, `columns: ColumnDef<T, unknown>[]`, `meta: { page, limit, total, totalPages }`, `onPageChange`, `caption` opcional, `isLoading`/`error`/`onRetry`/`emptyTitle`/`emptyDescription`/`emptyAction`/`skeletonRows`
+- [x] `src/components/data-table/pagination.tsx` con `aria-label`, `aria-live="polite"`, `<nav>` semántico
+- [x] `src/components/data-table/column-defs.tsx` con 8 helpers: `textColumn`, `badgeColumn`, `dateColumn`, `currencyColumn`, **`numberColumn`** (nuevo), **`booleanColumn`** (nuevo, configurable), **`iconColumn`** (nuevo, escape hatch), `actionsColumn`
+- [x] Loading state: `<Skeleton>` con `aria-busy="true"`
+- [x] Empty state: `<EmptyState>` si `data.length === 0`
+- [x] Error state: `<ErrorState onRetry={refetch} />` si `error`
+
+**Notas de cierre 1.10:**
+
+**Lo que YA estaba hecho y no se reimplementó:**
+- Los 3 archivos y los 3 states ya existían desde el sprint 1.0/1.2 (creados para soportar las primeras listas: items, categories, users, branches, warehouses). El sprint 1.10 estaba marcado como pendiente por error histórico en el TODO. **8 listas** lo usan actualmente.
+
+**Lo que se hizo en este sprint (refactor + helpers):**
+- **3 helpers nuevos** en `column-defs.tsx`:
+  - `numberColumn<T>(header, accessor, fallback?)`: para enteros/decimales sin formato de moneda. Usa `formatDecimal` (no `formatCurrency` — el detail de item de 1.2 mostraba `formatCurrency` para quantity/minStock, que es semánticamente incorrecto, lo dejé en 1.2 por consistencia. Acá hago lo correcto).
+  - `booleanColumn<T>(header, accessor, options?, fallback?)`: para true/false → badge colored. Configurable con `trueLabel`, `falseLabel`, `trueVariant`, `falseVariant`. Útil para vistas nuevas que muestren un booleano sin badge custom.
+  - `iconColumn<T>(header, accessor, renderIcon, fallback?)`: escape hatch que permite renderizar un icono de phosphor o cualquier ReactNode según el valor. Útil para `type` badges en stock-movements, `priority` en recommendations, etc.
+- **1 call site migrado como ejemplo**: `customers/$customerId/index.tsx` columna `itemCount` (cell custom de 5 líneas) → `numberColumn<CustomerSale>('Items', 'itemCount')` (1 línea). Sirve como ejemplo de uso del nuevo helper.
+- **Accesibilidad agregada**:
+  - `<Table aria-label={caption}>` y `<caption className="sr-only">` cuando se pasa `caption` opcional.
+  - `<Pagination>` usa `<nav aria-label="Paginación">` (semántico, no `role="navigation"` en un `<div>`).
+  - Botones Anterior/Siguiente con `aria-label="Página anterior"` / `"Página siguiente"`.
+  - "Mostrando X–Y de Z" con `aria-live="polite"`.
+  - Loading state con `aria-busy="true"`.
+- **Centralización del `DataTableMeta`**: el type se define en `data-table.tsx` (única fuente de verdad) y se re-exporta. `pagination.tsx` lo importa de ahí (antes lo re-declaraba localmente).
+
+**Decisiones de implementación:**
+- **NO se agregó `onSortChange` ni `onSearchChange` al DataTable** (lo que el TODO original pedía):
+  - **Sort**: el back no expone `sort` en ningún endpoint. Los list endpoints de items, categories, users, branches, warehouses, customers, stock-by-warehouse, sales, etc. NO aceptan `?sort=field:asc|desc`. Sin back, el sort client-side sería incorrecto para listas con miles de items. Mejor esperar a que el back lo agregue (deuda técnica futura).
+  - **Search onChange**: los filtros viven en cada página (search params del router + `<Input>` por encima de la tabla). Centralizarlos en el DataTable rompería el patrón URL-as-source-of-truth de AGENTS §8.6 y haría que los filtros no sean shareables.
+- **Migración parcial del `itemCount`**: sólo 1 call site migrado (como ejemplo de uso de `numberColumn`). Migrar los otros 7 sería churn sin valor.
+- **`booleanColumn` no migra los `<CustomerStatusBadge>`, `<ItemStatusBadge>`, `<WarehouseStatusBadge>`**: cada dominio tiene su propio badge con texto/color específico. Refactorizar sería churn sin valor claro.
+- **`iconColumn` no se usa todavía**: queda como escape hatch para sprints 2.2/2.3/2.4/2.5 (donde habrá badges colored con iconos en stock-movements, recommendations, sales, etc.).
+- **`formatDecimal` vs `formatCurrency` en el helper de números**: el nuevo `numberColumn` usa `formatDecimal`. El detail de item de 1.2 sigue usando `formatCurrency` para `quantity`/`minStock` (que es semánticamente incorrecto — cantidad no es moneda). Lo dejo como deuda técnica menor.
+
+**Lo que se encontró pre-existente (no introducido por este sprint):**
+- **3 errores pre-existentes del sidebar** (`sidebar.tsx` + `ui/sidebar.tsx`): arrastrados desde sprints anteriores, no introducidos.
+- **Código muerto en `useCreateCustomer` y `customer-create-dialog.tsx`**: el sprint 1.9 había sacado `isActive` del `createCustomerSchema` (junto con el del update) pero el código del hook y del dialog seguían referenciándolo. Limpiado en este sprint: removido `if (body.isActive !== undefined) cleanBody.isActive = body.isActive` del hook y el bloque del checkbox del dialog (más los imports muertos `Checkbox`, `watch`, `setValue`).
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (shell: 448.26 KB gz 135.11 KB; los 8 chunks de las listas no crecieron significativamente)
+- `pnpm run lint` ✅ en archivos del sprint (3 errores pre-existentes en `sidebar.tsx`, ajenos al sprint)
+- `pnpm run routes:gen` ✅ (no se tocan rutas, regenera idempotente)
+
+**Verificación manual pendiente (checklist para el browser):**
+- [ ] Visitar las 8 listas (items, categories, users, branches, warehouses, customers, detail warehouse, detail customer) → verificar que cada una renderiza idéntico a antes.
+- [ ] Paginación funciona en todas (Anterior/Siguiente, con `aria-label`).
+- [ ] Customer detail → sección "Ventas" → columna "Items" muestra números formateados con `formatDecimal` (sin `$`).
+- [ ] Devtools: en cualquier `<Table>` inspeccionar → tiene `aria-label` y `<caption class="sr-only">` cuando se pasa `caption`.
+- [ ] Devtools: el `<nav>` de la paginación tiene `aria-label="Paginación"`.
+
+**Patrones nuevos para reusar en próximos sprints:**
+- **`numberColumn`** — para counts y decimales sin currency. Será útil en: stock-movements (`quantity` con sign), customers/segments (`purchaseCount`, `totalSpent` no porque es currency), reports (`revenue`, `quantity`).
+- **`booleanColumn`** — para vistas que muestren un booleano simple sin badge custom. Reusable en: `customers` (si en el futuro se agrega un "verificados"), `users` (si se agrega `emailVerified`).
+- **`iconColumn`** — escape hatch para celdas con iconos. Reusable en: stock-movements (icono por `type`), recommendations (icono por `type` y `priority`), sales (icono de status).
+- **`<Table aria-label={caption}>` + `<caption className="sr-only">`** — patrón de accesibilidad. Si la página tiene un título `<h1>` que describe la lista, el `caption` es redundante para screen readers; si no, es necesario. **Decisión**: pasar `caption` siempre que aporte info extra al screen reader (ej. "Lista de items de la sucursal Centro").
 
 ---
 

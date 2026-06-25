@@ -91,7 +91,6 @@ export function useCreateCustomer() {
       if (body.email) cleanBody.email = body.email;
       if (body.phone) cleanBody.phone = body.phone;
       if (body.address) cleanBody.address = body.address;
-      if (body.isActive !== undefined) cleanBody.isActive = body.isActive;
       if (branchId) cleanBody.branchId = branchId;
       const { data, error } = await api.POST('/api/v1/customers', {
         body: cleanBody as CreateCustomerBody,
