@@ -93,3 +93,14 @@ export const stockKeys = {
   byWarehouse: (warehouseId: string, q: object) =>
     [...stockKeys.all, 'warehouse', warehouseId, q] as const,
 };
+
+export const stockMovementKeys = {
+  all: ['stock-movements'] as const,
+  lists: () => [...stockMovementKeys.all, 'list'] as const,
+  list: (q: object) => [...stockMovementKeys.lists(), q] as const,
+  details: () => [...stockMovementKeys.all, 'detail'] as const,
+  detail: (id: string) => [...stockMovementKeys.details(), id] as const,
+  itemHistory: (itemId: string, q: object) =>
+    [...stockMovementKeys.all, 'item-history', itemId, q] as const,
+  lowStock: (q: object) => [...stockMovementKeys.all, 'low-stock', q] as const,
+};

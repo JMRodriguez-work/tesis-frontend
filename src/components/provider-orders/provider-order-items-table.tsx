@@ -1,20 +1,20 @@
-import { PlusIcon, TrashIcon } from "@phosphor-icons/react";
-import { useMemo } from "react";
+import { PlusIcon, TrashIcon } from '@phosphor-icons/react';
+import { useMemo } from 'react';
 import {
   type Control,
   Controller,
   type FieldArrayWithId,
   type FieldErrors,
   useWatch,
-} from "react-hook-form";
-import { useItems } from "@/api/queries/use-items";
-import { useUnits } from "@/api/queries/use-units";
-import { Button } from "@/components/ui/button";
-import { ComboboxField, type ComboboxItem } from "@/components/ui/combobox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { formatCurrency } from "@/lib/format";
-import type { CreateProviderOrderFormValues } from "@/lib/schemas/provider-order";
+} from 'react-hook-form';
+import { useItems } from '@/api/queries/use-items';
+import { useUnits } from '@/api/queries/use-units';
+import { Button } from '@/components/ui/button';
+import { ComboboxField, type ComboboxItem } from '@/components/ui/combobox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { formatCurrency } from '@/lib/format';
+import type { CreateProviderOrderFormValues } from '@/lib/schemas/provider-order';
 
 type ItemFieldValues = {
   itemId: string;
@@ -25,7 +25,7 @@ type ItemFieldValues = {
 
 type ProviderOrderItemsTableProps = {
   control: Control<CreateProviderOrderFormValues>;
-  fields: FieldArrayWithId<CreateProviderOrderFormValues, "items", "id">[];
+  fields: FieldArrayWithId<CreateProviderOrderFormValues, 'items', 'id'>[];
   errors: FieldErrors<CreateProviderOrderFormValues>;
   branchId?: string;
   onAppend: () => void;
@@ -46,13 +46,11 @@ function ProviderOrderItemsTable({
     { enabled: !!branchId },
   );
 
-  const watchedItems = useWatch({ control, name: "items" }) as
-    | ItemFieldValues[]
-    | undefined;
+  const watchedItems = useWatch({ control, name: 'items' }) as ItemFieldValues[] | undefined;
 
   const unitItems: ComboboxItem[] = useMemo(
     () => [
-      { label: "— Sin unidad —", value: null },
+      { label: '— Sin unidad —', value: null },
       ...(units?.map((unit) => ({
         label: `${unit.name} (${unit.abbreviation})`,
         value: unit.id.toString(),
@@ -63,9 +61,9 @@ function ProviderOrderItemsTable({
 
   const itemOptions: ComboboxItem[] = useMemo(
     () => [
-      { label: "— Seleccionar item —", value: null },
+      { label: '— Seleccionar item —', value: null },
       ...(itemsData?.data.map((item) => ({
-        label: `${item.name}${item.code ? ` (${item.code})` : ""}`,
+        label: `${item.name}${item.code ? ` (${item.code})` : ''}`,
         value: item.id,
       })) ?? []),
     ],
@@ -95,9 +93,7 @@ function ProviderOrderItemsTable({
       </div>
 
       {fields.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          Agregá al menos un item a la orden.
-        </p>
+        <p className="text-xs text-muted-foreground">Agregá al menos un item a la orden.</p>
       ) : (
         <div className="rounded-lg border border-border">
           <table className="w-full text-xs">
@@ -125,10 +121,7 @@ function ProviderOrderItemsTable({
                   ? itemsArrayError[index]
                   : undefined;
                 return (
-                  <tr
-                    key={row.id}
-                    className="border-b last:border-0 items-center"
-                  >
+                  <tr key={row.id} className="border-b last:border-0 items-center">
                     <td className="p-2">
                       <Controller
                         control={control}
@@ -139,18 +132,14 @@ function ProviderOrderItemsTable({
                             label=""
                             items={itemOptions}
                             value={field.value || null}
-                            onValueChange={(value) =>
-                              field.onChange(value ?? "")
-                            }
+                            onValueChange={(value) => field.onChange(value ?? '')}
                             placeholder="Seleccionar item"
                             className="min-w-48"
                           />
                         )}
                       />
                       {rowError?.itemId ? (
-                        <p className="mt-1 text-xs text-destructive">
-                          {rowError.itemId.message}
-                        </p>
+                        <p className="mt-1 text-xs text-destructive">{rowError.itemId.message}</p>
                       ) : null}
                     </td>
                     <td className="p-2">
@@ -158,14 +147,10 @@ function ProviderOrderItemsTable({
                         id={`items.${index}.quantity`}
                         inputMode="decimal"
                         placeholder="0.000"
-                        {...control.register(
-                          `items.${index}.quantity` as const,
-                        )}
+                        {...control.register(`items.${index}.quantity` as const)}
                       />
                       {rowError?.quantity ? (
-                        <p className="mt-1 text-xs text-destructive">
-                          {rowError.quantity.message}
-                        </p>
+                        <p className="mt-1 text-xs text-destructive">{rowError.quantity.message}</p>
                       ) : null}
                     </td>
                     <td className="p-2">
@@ -176,9 +161,7 @@ function ProviderOrderItemsTable({
                         {...control.register(`items.${index}.cost` as const)}
                       />
                       {rowError?.cost ? (
-                        <p className="mt-1 text-xs text-destructive">
-                          {rowError.cost.message}
-                        </p>
+                        <p className="mt-1 text-xs text-destructive">{rowError.cost.message}</p>
                       ) : null}
                     </td>
                     <td className="p-2">
@@ -196,9 +179,7 @@ function ProviderOrderItemsTable({
                                 : null
                             }
                             onValueChange={(value) =>
-                              field.onChange(
-                                value === null ? undefined : Number(value),
-                              )
+                              field.onChange(value === null ? undefined : Number(value))
                             }
                             placeholder="Sin unidad"
                             className="min-w-40"
@@ -207,7 +188,7 @@ function ProviderOrderItemsTable({
                       />
                     </td>
                     <td className="p-2 text-right font-mono">
-                      {lineSubtotal > 0 ? formatCurrency(lineSubtotal) : "—"}
+                      {lineSubtotal > 0 ? formatCurrency(lineSubtotal) : '—'}
                     </td>
                     <td className="p-2">
                       <Button
@@ -226,15 +207,10 @@ function ProviderOrderItemsTable({
             </tbody>
             <tfoot>
               <tr className="border-t bg-slate-50 font-medium">
-                <td
-                  colSpan={4}
-                  className="p-2 text-right text-muted-foreground"
-                >
+                <td colSpan={4} className="p-2 text-right text-muted-foreground">
                   Total
                 </td>
-                <td className="p-2 text-right font-mono">
-                  {formatCurrency(total)}
-                </td>
+                <td className="p-2 text-right font-mono">{formatCurrency(total)}</td>
                 <td className="p-2" />
               </tr>
             </tfoot>
@@ -242,7 +218,7 @@ function ProviderOrderItemsTable({
         </div>
       )}
 
-      {typeof itemsArrayError?.message === "string" ? (
+      {typeof itemsArrayError?.message === 'string' ? (
         <p className="text-xs text-destructive">{itemsArrayError.message}</p>
       ) : null}
     </div>

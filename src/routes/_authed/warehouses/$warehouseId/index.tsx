@@ -1,17 +1,24 @@
-import { ArrowLeftIcon, PencilSimpleIcon } from '@phosphor-icons/react';
+import { ArrowLeftIcon, ArrowsLeftRightIcon, PencilSimpleIcon } from '@phosphor-icons/react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { useMe } from '@/api/queries/use-auth';
 import { useStockByWarehouse, type WarehouseStockRow } from '@/api/queries/use-stock';
+import { type StockMovementListItem, useStockMovements } from '@/api/queries/use-stock-movements';
 import { useWarehouse } from '@/api/queries/use-warehouses';
-import { actionsColumn, currencyColumn, textColumn } from '@/components/data-table/column-defs';
+import {
+  actionsColumn,
+  currencyColumn,
+  dateColumn,
+  textColumn,
+} from '@/components/data-table/column-defs';
 import { DataTable } from '@/components/data-table/data-table';
 import { ErrorState } from '@/components/feedback/error-state';
 import { Skeleton } from '@/components/feedback/skeleton';
 import { EditMinStockDialog } from '@/components/items/edit-min-stock-dialog';
 import { StockStatusBadge } from '@/components/stock/stock-status-badge';
+import { StockMovementTypeBadge } from '@/components/stock-movements/stock-movement-type-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { ComboboxField, type ComboboxItem } from '@/components/ui/combobox';
@@ -32,6 +39,7 @@ const warehouseDetailSearchSchema = z.object({
   page: z.number().int().min(1).default(1),
   search: z.string().default(''),
   status: z.enum(['ok', 'low', 'out']).nullable().default(null),
+  movementPage: z.number().int().min(1).default(1),
 });
 
 const Route = createFileRoute('/_authed/warehouses/$warehouseId/')({
@@ -87,6 +95,98 @@ function WarehouseDetailPage() {
     const next = value === 'ok' || value === 'low' || value === 'out' ? value : null;
     void navigate({ to: '.', search: { ...search, status: next, page: 1 } });
   };
+  const handleMovementPageChange = (newPage: number) => {
+    void navigate({ to: '.', search: { ...search, movementPage: newPage } });
+  };
+
+  const {
+    data: movements,
+    isLoading: isLoadingMovements,
+    error: movementsError,
+    refetch: refetchMovements,
+  } = useStockMovements({ warehouseId, page: search.movementPage, limit: 20 });
+
+  const movementColumns = useMemo<ColumnDef<StockMovementListItem, unknown>[]>(
+    () => [
+      dateColumn<StockMovementListItem>('Fecha', 'createdAt', true),
+      {
+        id: 'type',
+        header: 'Tipo',
+        accessorFn: (row) => row.type,
+        cell: ({ row }) => <StockMovementTypeBadge type={row.original.type} />,
+      },
+      {
+        id: 'item',
+        header: 'Item',
+        accessorFn: (row) => row.itemName,
+        cell: ({ row }) => (
+          <Link
+            to="/items/$itemId"
+            params={{ itemId: row.original.itemId }}
+            className="text-foreground text-xs hover:underline"
+          >
+            {row.original.itemName}
+          </Link>
+        ),
+      },
+      {
+        id: 'quantity',
+        header: 'Cantidad',
+        accessorFn: (row) => row.quantity,
+        cell: ({ row }) => {
+          const q = Number(row.original.quantity);
+          const sign = row.original.type === 'in' ? '+' : row.original.type === 'out' ? '-' : '±';
+          const color =
+            row.original.type === 'in'
+              ? 'text-emerald-600'
+              : row.original.type === 'out'
+                ? 'text-red-600'
+                : 'text-muted-foreground';
+          return (
+            <span className={cn('font-mono', color)}>
+              {sign}
+              {Number.isNaN(q) ? row.original.quantity : q.toString()}
+            </span>
+          );
+        },
+      },
+      {
+        id: 'counterpart',
+        header: 'Contraparte',
+        accessorFn: (row) => row,
+        cell: ({ row }) => {
+          const m = row.original;
+          if (m.type === 'transfer') {
+            const counter =
+              m.toWarehouseId === warehouseId ? m.fromWarehouseName : m.toWarehouseName;
+            return (
+              <span className="text-xs text-muted-foreground">
+                <ArrowsLeftRightIcon className="mr-1 inline size-3" />
+                {counter ?? '—'}
+              </span>
+            );
+          }
+          return <span className="text-xs text-muted-foreground">—</span>;
+        },
+      },
+      textColumn<StockMovementListItem>('Sucursal', 'branchName'),
+      {
+        id: 'notes',
+        header: 'Notas',
+        accessorFn: (row) => row.notes,
+        cell: ({ getValue }) => {
+          const v = getValue();
+          if (!v) return <span className="text-xs text-muted-foreground">—</span>;
+          return (
+            <span className="line-clamp-1 max-w-xs text-xs text-muted-foreground" title={String(v)}>
+              {String(v)}
+            </span>
+          );
+        },
+      },
+    ],
+    [warehouseId],
+  );
 
   const columns = useMemo<ColumnDef<WarehouseStockRow, unknown>[]>(
     () => [
@@ -209,6 +309,31 @@ function WarehouseDetailPage() {
           onRetry={() => void refetchStock()}
           emptyTitle="Sin stock"
           emptyDescription="Este depósito no tiene items con stock registrado."
+        />
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">Historial de movimientos</h2>
+          <Link
+            to="/stock-movements"
+            search={{ warehouseId }}
+            className="text-xs text-muted-foreground hover:underline"
+          >
+            Ver todos
+          </Link>
+        </div>
+        <DataTable
+          data={movements?.data ?? []}
+          columns={movementColumns}
+          meta={movements?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
+          onPageChange={handleMovementPageChange}
+          isLoading={isLoadingMovements}
+          error={movementsError}
+          onRetry={() => void refetchMovements()}
+          emptyTitle="Sin movimientos"
+          emptyDescription="Este depósito no tiene movimientos de stock registrados."
+          caption="Historial de movimientos del depósito"
         />
       </section>
 

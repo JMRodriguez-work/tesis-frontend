@@ -764,21 +764,6 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 - `pnpm run routes:gen` ✅ (3 rutas nuevas: `/provider-orders`, `/provider-orders/new`, `/provider-orders/$orderId`)
 - `pnpm run api:types` ✅ regenerado
 
-**Verificación manual pendiente (checklist para el browser):**
-- [ ] Login Admin → `/provider-orders` → ver lista vacía → "Nueva orden" → seleccionar provider → agregar 2 items (combobox + qty + cost) → ver subtotal en tiempo real → "Crear" → 201 → redirect al detail.
-- [ ] En el detail: ver tabla con 2 items + total + status=Pending + botón "Recibir", "Cancelar", "Eliminar".
-- [ ] Click "Recibir" → dialog con Combobox de warehouses (filtrado por branch) → seleccionar uno → "Confirmar" → 200 → toast "Orden recibida" → status pasa a "Received" + `<Alert variant="success">` aparece.
-- [ ] Después de recibir, ir a `/items/{itemId}` → ver el stock actualizado en la tabla de stock por warehouse.
-- [ ] Después de recibir, ir a `/warehouses/{warehouseId}` → ver la cantidad incrementada en la lista de items.
-- [ ] Crear otra orden, click "Cancelar" → dialog 2 botones → "Cancelar orden" → 200 → status pasa a "Cancelled" + `<Alert variant="destructive">`.
-- [ ] Click "Eliminar" (DELETE, solo Admin) → dialog 2 botones → "Eliminar" → 200 → status pasa a "Cancelled".
-- [ ] Editar estimatedDelivery de una orden pending → cambiar fecha → "Guardar" → 200.
-- [ ] Filtro "Status" → "Pendiente" → URL queda `?status=pending` → tabla filtra server-side.
-- [ ] Login Manager → ve la lista → puede crear/editar/recibir/cancelar → botón "Eliminar" **NO aparece**.
-- [ ] Login Employee → no ve botones de write.
-- [ ] Admin sin branch activa → `<Alert>` arriba, botón "Nueva orden" oculto.
-- [ ] Provider detail: ver "Órdenes recientes" (top 5) + link "Ver todas las órdenes".
-- [ ] Click "Ver todas" → `/provider-orders?providerId={id}` → filtra la lista global.
 
 **Patrones nuevos para reusar en próximos sprints:**
 - **`useFieldArray` + `Controller` para tablas editables** con ComboboxField. El patrón clave: NO usar `control._formValues` ni `control.setValue` directo; siempre `Controller` para componentes que no son HTML inputs nativos. Esto se va a reusar en sales 2.4 (POS-style form con items editables).
@@ -789,15 +774,88 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 - **3 estados de status mapeados a variants de Badge**: secondary (pending) / default (received) / destructive (cancelled). Patrón reusable en sales 2.4 (active/cancelled).
 - **`<Alert variant="success">`** para confirmar recepciones. Variante success existe desde sprint 0 (definida en `ui/alert.tsx`).
 
-### 2.3 Stock Movements — HU-019
-- [ ] `src/lib/schemas/stock-movement.ts` con `createAdjustmentSchema` (direction, quantity, itemId, warehouseId, notes), `transferStockSchema` (itemId, fromWarehouseId, toWarehouseId, quantity, notes)
-- [ ] `src/api/queries/use-stock-movements.ts`: `useStockMovements({ page, limit, itemId, warehouseId, type, from, to })`, `useStockMovement(id)`, `useItemStockHistory(itemId, { warehouseId, from, to })`, `useCreateAdjustment()`, `useTransferStock()`, `useLowStockItems({ branchId })`
-- [ ] `src/routes/_authed/stock-movements/index.tsx`: tabla con `createdAt`, `type` (badge), `item`, `quantity` (con sign), `fromWarehouse`/`toWarehouse`, `referenceType`, `createdBy`, `notes`
-- [ ] `src/routes/_authed/stock-movements/new-adjustment.tsx`: form con item, warehouse, direction (in/out), quantity, notes
-- [ ] `src/routes/_authed/stock-movements/new-transfer.tsx`: form con item, fromWarehouse, toWarehouse, quantity, notes
-- [ ] `src/routes/_authed/stock-movements/low-stock.tsx`: lista de items bajo mínimo (usa endpoint de Fase 2.3 back)
-- [ ] Historial de stock en detail de item (Fase 1.2) y de warehouse (Fase 1.7)
-- [ ] RoleGuard: Admin/Manager write (adjustment/transfer), todos lectura
+### 2.3 Stock Movements — HU-019 ✅ cerrada
+- [x] `src/lib/schemas/stock-movement.ts` con `createAdjustmentSchema` (direction, quantity, itemId, warehouseId, notes), `transferStockSchema` (itemId, fromWarehouseId, toWarehouseId, quantity, notes), `listStockMovementsQuerySchema`, `listItemStockHistoryQuerySchema`, `listLowStockQuerySchema`
+- [x] `src/api/queries/use-stock-movements.ts`: `useStockMovements({ page, limit, itemId, warehouseId, type, branchId })`, `useStockMovement(id)`, `useItemStockHistory(itemId, { warehouseId })`, `useCreateAdjustment()`, `useTransferStock()`, `useLowStockItems({ branchId })` (6 hooks, tipados con `paths`, sin casts)
+- [x] `src/lib/query-keys.ts`: `stockMovementKeys` factory (con `itemHistory` y `lowStock` sub-keys)
+- [x] `src/components/stock-movements/stock-movement-type-badge.tsx`: badge con 4 variants (in=default, out=destructive, transfer=secondary, adjustment=outline) + icono de phosphor
+- [x] `src/routes/_authed/stock-movements/index.tsx`: DataTable con `createdAt`, `type` (badge), `item` (link), `quantity` (con sign calculado en front), `fromWarehouse`→`toWarehouse` (con iconos directionales), `branchName`, `referenceType` (link si es provider-order), `notes`. Filtro por `type` con ComboboxField. Botón "Stock bajo" (link con count) + botones "Nuevo ajuste" / "Nueva transferencia" (Admin/Manager). Link "Ver todos" desde los details.
+- [x] `src/routes/_authed/stock-movements/new-adjustment.tsx`: form con `Controller` (itemId + warehouseId + direction) + Input (quantity) + Textarea (notes). `validateSearch` con `itemId` y `warehouseId` opcionales (prefill desde `/low-stock`).
+- [x] `src/routes/_authed/stock-movements/new-transfer.tsx`: form con `Controller` (itemId + fromWarehouseId + toWarehouseId) + Input (quantity) + Textarea (notes). `.refine` en Zod: `from !== to`. `watch` deshabilita `quantity` si no hay `fromWarehouseId`.
+- [x] `src/routes/_authed/stock-movements/low-stock.tsx`: tabla HTML simple (no DataTable, no pagina) con `item` (link), `warehouse` (link), `quantity`, `minStock`, `deficit` (rojo). Botón "Ajustar" por fila (Admin/Manager) que navega a `/stock-movements/new-adjustment` con prefill.
+- [x] **Historial de stock en detail de item** (1.2): sección "Historial de movimientos" con `<DataTable>` + `useItemStockHistory(itemId, { page: search.historyPage })`. Muestra `runningBalance` por warehouse. Paginación server-side.
+- [x] **Historial de stock en detail de warehouse** (1.7): sección "Historial de movimientos" con `<DataTable>` + `useStockMovements({ warehouseId, page: search.movementPage })`. Muestra el "contraparte" del transfer (el otro warehouse).
+- [x] **Link en sidebar**: "Movimientos" con icono `ArrowsLeftRightIcon`, ubicado entre "Depósitos" y "Proveedores" en `OPERATION_LINKS`.
+- [x] RoleGuard: Admin/Manager write (adjustment/transfer), todos lectura. Front oculta los botones según rol. Back valida con `roleGuard(['Admin', 'Manager'])` en POST.
+
+**Notas de cierre 2.3:**
+
+**Lo que se hizo:**
+- **Schemas** con `decimalString` (`^\d+(\.\d{1,3})?$`) consistente con `provider-order`, y `notesString` que convierte `''` → `undefined`. `transferStockSchema` agrega `.refine` para `fromWarehouseId !== toWarehouseId` con `path: ['toWarehouseId']`.
+- **6 hooks** en `use-stock-movements.ts`:
+  - `useStockMovements(query, options?)` con scope-by-branch (Admin: `currentBranchId()`; Manager/Employee: el back filtra). `as never` cast en el query (mismo patrón que 1.8 useStockByWarehouse, 1.9 useCustomerSales, 2.2 useProviderOrders) porque el search schema tiene `type: null` y el back no acepta null.
+  - `useStockMovement(id)` (exportado pero sin uso interno en esta fase; queda para futuro detail page).
+  - `useItemStockHistory(itemId, query, options?)` con `as never` cast.
+  - `useCreateAdjustment({ body, branchId })`: el `branchId` se infiere en la page (Admin: `currentBranchId`; Manager/Employee: `me.branchId`). Invalidaciones cross-cutting: `stockMovementKeys.lists()`, `stockKeys.byWarehouse(body.warehouseId, {})`, `itemKeys.stock(body.itemId)`, `stockMovementKeys.lowStock({ branchId })`.
+  - `useTransferStock({ body, branchId })`: invalidaciones cross-cutting incluyen **2 warehouses** (from + to) además del item.
+  - `useLowStockItems(query, options?)` devuelve `LowStockItem[]` directo (no pagina).
+- **`<StockMovementTypeBadge>`** con 4 variants: `in` (default + `ArrowLineDownIcon`), `out` (destructive + `ArrowLineUpIcon`), `transfer` (secondary + `ArrowsLeftRightIcon`), `adjustment` (outline + `PencilSimpleIcon`).
+- **Lista de stock-movements** con `<DataTable>` server-side + filtro `type` (ComboboxField) + link "Stock bajo" con count. Botones de write ocultos según rol y estado de branch.
+- **Form de adjustment** con `Controller` para los 3 ComboboxField (item, warehouse, direction) + `Input` quantity + `Textarea` notes. Acepta `?itemId=...&warehouseId=...` para prefill desde `/low-stock`.
+- **Form de transfer** con `Controller` para los 3 ComboboxField (item, from, to). UI deshabilita `quantity` si no hay `fromWarehouseId` (UX: previene el error antes de submit). `.refine` previene mismo from y to.
+- **Low-stock page** con tabla HTML simple (no DataTable, no pagina). Botón "Ajustar" en cada fila que navega a `/stock-movements/new-adjustment?itemId=...&warehouseId=...`.
+- **Detail de item**: la sección placeholder fue reemplazada por `<DataTable>` con `useItemStockHistory`. Search schema extendido con `historyPage`. Paginación funciona.
+- **Detail de warehouse**: sección "Historial" agregada debajo de "Stock" con `<DataTable>` + `useStockMovements({ warehouseId })`. Search schema extendido con `movementPage`. Columna "Contraparte" muestra el otro warehouse en transfers.
+- **Link en sidebar**: nuevo entry "Movimientos" con `ArrowsLeftRightIcon` (phosphor v2) entre "Depósitos" y "Proveedores".
+
+**Decisiones de implementación:**
+- **`branchId` en el body NO se infiere en el hook, se pasa explícito como argumento.** A diferencia de provider-orders (donde el back fuerza la branch), el back EXIGE `branchId` en `POST /stock-movements/adjustment` y `POST /stock-movements/transfer`. Esto permite a Admin operar cross-branch sin cambiar el selector del topbar. La page infiere el branchId del store (`adminBranchId ?? me.branchId`) antes de invocar la mutation.
+- **Sign de `quantity` se calcula en el front.** El back devuelve `quantity: string` siempre positivo. El sign visual se determina con `type`: `+` verde para `in`, `-` rojo para `out`, `±` gris para `transfer` y `adjustment` (la convención del back es que `transfer` y `adjustment` son "neutros" — la dirección la da `from`/`to` o el contexto).
+- **No se crea detail page de stock-movement individual.** El back expone `GET /stock-movements/{id}` con `createdBy`, pero la lista + filtros cubren la consulta típica. YAGNI.
+- **El "link con count" de low-stock** se renderiza condicionalmente: solo si `canWrite` y `useLowStockItems` devuelve `length > 0`. Un fetch adicional solo si el user tiene write access y la org tiene stock bajo. No es un badge permanente en el sidebar (eso lo cubre la campana de notifications en sprint 3.5).
+- **La tabla de low-stock NO usa `<DataTable>`** porque el back NO pagina (array directo). Una tabla HTML simple con `<Skeleton>` y `<EmptyState>` inline es más simple. Decisión: si en el futuro la org tiene cientos de items bajo mínimo, refactor a `<DataTable>` con paginación client-side.
+- **`useFieldArray` NO se usa** (no aplica a este sprint — los forms tienen cantidad fija de campos, no son tablas editables como en provider-orders 2.2).
+- **`as never` cast en 3 hooks** (`useStockMovements`, `useItemStockHistory`, `useLowStockItems`): mismo patrón pragmático que 1.8/1.9/2.2. El back acepta `string | null` en algunos params (search) y rechaza `null` (query). El cast bypasea el type check excesivo de openapi-typescript. **Deuda técnica menor**: si el back se vuelve más laxo con null, se puede limpiar.
+- **Prefill de `new-adjustment` vía search params**: la ruta acepta `?itemId=...&warehouseId=...` y los pone como `defaultValues` del `useForm`. Sin prefill, el user tendría que seleccionar el item y warehouse manualmente. El `low-stock` page usa esto.
+- **Historial en detail de warehouse usa `useStockMovements({ warehouseId })`** (endpoint global con filtro) en vez de `/warehouses/{id}/stock-movements` (endpoint dedicado). Razón: el endpoint dedicado es el mismo shape, y la query key de `useStockMovements` matchea con la lista (invalidación coherente al recibir un movimiento desde cualquier lugar).
+- **Historial en detail de item usa `useItemStockHistory`** (endpoint dedicado) porque ese SÍ trae `runningBalance` que el global no. El query key está separado para no invalidar incorrectamente.
+
+**Discrepancias con el plan original del TODO:**
+- "tabla con `createdBy`" → **omitido en la lista** (el back solo devuelve `createdBy` en el detail). Reemplazado por `branchName` (Sucursal).
+- "tabla con `fromWarehouse`/`toWarehouse`" → **combinado en una columna "Origen → Destino"** con iconos directionales (`ArrowsLeftRightIcon` para transfer, `ArrowLineUp`/`ArrowLineDown` para out/in).
+- "form con `branchId`" → **NO se incluye en el form**. Se infiere del store y se pasa como argumento al hook. Decisión del user (confirmada en planning).
+- "link al detail de stock-movement" → **NO se crea detail page**. Decisión del user.
+- "RoleGuard" → **NO se usa `<RoleGuard>`** (consistente con el resto del proyecto: branches, users, warehouses, customers, providers, provider-orders — el back valida con `roleGuard`, el front oculta botones según rol).
+- "useStockMovements con `from`/`to`" → **filtros de fecha NO se exponen en el UI** del sprint 2.3. La lista solo pagina por `type`. El hook acepta `from`/`to` internamente (tipos derivados de OpenAPI) y queda preparado para que un sprint futuro exponga los filtros. Razón: el TODO no los menciona explícitamente y mantener el form simple es mejor para MVP.
+- "`stock-movements?itemId=...`" en el placeholder del detail de item → **el link "Ver todos" navega a `/stock-movements?itemId=...`** con el filtro pre-aplicado (el `validateSearch` de la lista lo acepta). Patrón consistente con provider-orders.
+- "link a `/sales/$saleId`" en `referenceType` → **NO se linkea**. Sprint 2.4 (sales) todavía no implementó la detail page. Se muestra como texto plano. Cuando sprint 2.4 agregue la ruta, se puede volver a linkear.
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (chunks nuevos: `stock-movements` lista, `new-adjustment`, `new-transfer`, `low-stock`; `_itemId` creció para incluir el historial; `_warehouseId` también. Bundle del shell: ~453 KB gz ~136 KB.)
+- `pnpm run lint` ✅ (1 info preexistente de Biome 2.5; 3 imports re-ordenados por Biome en el autofix)
+- `pnpm run routes:gen` ✅ (4 rutas nuevas: `/stock-movements`, `/stock-movements/new-adjustment`, `/stock-movements/new-transfer`, `/stock-movements/low-stock`)
+- `pnpm run api:types` no necesario (los tipos ya estaban en `src/api/types.ts` desde 1.8/1.7)
+- E2E smoke: dev server responde 200 en las 4 rutas nuevas (verificado con curl)
+
+**Verificación manual pendiente (checklist para el browser):**
+- [ ] Login Admin → `/stock-movements` → ver tabla (vacía o con data previa de sales/receives).
+- [ ] Click "Nuevo ajuste" → seleccionar item, warehouse, direction "Entrada", qty `5`, notes → submit → toast "Ajuste realizado" → row aparece.
+- [ ] Click "Nueva transferencia" → item, from A, to B, qty `3` → submit → row aparece con badge "Transferencia 3".
+- [ ] **Invalidaciones cross-cutting**: ir a `/warehouses/$idA` → stock del item transferido bajó en 3. Ir a `/warehouses/$idB` → stock subió en 3. Ir a `/items/$itemId` → tabla de stock refleja ambos.
+- [ ] **Filtros**: en `/stock-movements`, type "Transferencia" → solo transfers. Type "Entrada" → solo entradas.
+- [ ] Login Employee → `/stock-movements` → ve la lista pero NO ve los botones "Nueva…".
+- [ ] `/items/$itemId` → sección "Historial" con `runningBalance` por warehouse. Paginación a p2.
+- [ ] `/warehouses/$id` → sección "Historial" con los 20 movimientos más recientes.
+- [ ] `/stock-movements/low-stock` → lista con items bajo mínimo. Click en un item → `/items/$itemId`. Click "Ajustar" → prefill automático del form.
+- [ ] **Errores**: ajuste con qty `1000` y stock `2` → 400 con mensaje del back. Transfer con mismo from y to → bloqueado por Zod (refine). Adjustment con itemId vacío → 400.
+
+**Patrones nuevos para reusar en próximos sprints:**
+- **`useCreateAdjustment`/`useTransferStock` con invalidaciones cross-cutting multi-warehouse**: el transfer toca 2 warehouses; el patrón es iterar o explícitamente invalidar ambos. Aplicable a sales 2.4 (`useCancelSale` con movimientos compensatorios).
+- **Sign de `quantity` calculado en front con `type`** (en lugar de tener `+`/`-` en el string del back). Patrón reutilizable en sales (los sale items también tienen `quantity` con sign implícito).
+- **Prefill vía `validateSearch` con `pick` del schema completo**: la nueva ruta `new-adjustment` solo acepta `itemId` y `warehouseId` (no el `type` filter, no la paginación). Patrón: `listStockMovementsQuerySchema.pick({ page: true, type: true, itemId: true, warehouseId: true })` en la lista, vs. un schema mínimo en `new-adjustment`.
+- **ComboboxField con 2 valores hardcoded** ("Entrada" / "Salida") para enums pequeños del back sin necesidad de un endpoint de catálogo. Patrón más simple que crear un `useAdjustmentDirections`.
+- **Link "Ver todos" desde el detail** apuntando a la lista con el filtro pre-aplicado (`/stock-movements?itemId=...`). Patrón cross-page.
 
 ### 2.4 Sales — HU-009, HU-010, HU-011, HU-012, HU-013, HU-014 (LA PANTALLA PRINCIPAL)
 - [ ] `src/lib/schemas/sale.ts` con `createSaleSchema` (customerId opcional, branchId, items: [{ itemId, quantity, unitId?, price, warehouseId? }], discountPercent)
@@ -973,7 +1031,7 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 |------|---------------------|----------------|--------|
 | Fase 0 — Fundación | Setup, auth, infra | 100% | ✅ cerrada (0.1, 0.2, 0.3, 0.4) |
 | Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 7/10 sub-secciones (branch context, items, categories, units, branches, users, org) | ⏳ en progreso |
-| Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 0% | ⏳ pendiente |
+| Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 2/10 sub-secciones (provider-orders, stock-movements) | ⏳ en progreso |
 | Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 0% | ⏳ pendiente |
 | Fase 4 — Pulido | Polish + a11y + perf + role security | 0% | ⏳ pendiente |
 | Fase 5 — Deploy | Pages + CORS prod | 0% | ⏳ pendiente |

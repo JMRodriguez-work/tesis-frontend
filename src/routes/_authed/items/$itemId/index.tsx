@@ -1,13 +1,25 @@
-import { ArrowLeftIcon, PencilSimpleIcon, TrashIcon, WarningIcon } from '@phosphor-icons/react';
+import {
+  ArrowLeftIcon,
+  ArrowsLeftRightIcon,
+  PencilSimpleIcon,
+  TrashIcon,
+  WarningIcon,
+} from '@phosphor-icons/react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 import { useMe } from '@/api/queries/use-auth';
 import { useDeleteItem, useItem, useItemStock } from '@/api/queries/use-items';
+import { type ItemStockHistoryItem, useItemStockHistory } from '@/api/queries/use-stock-movements';
+import { dateColumn, textColumn } from '@/components/data-table/column-defs';
+import { DataTable } from '@/components/data-table/data-table';
 import { ErrorState } from '@/components/feedback/error-state';
 import { Skeleton } from '@/components/feedback/skeleton';
 import { EditMinStockDialog } from '@/components/items/edit-min-stock-dialog';
 import { ItemStatusBadge } from '@/components/items/item-status-badge';
+import { StockMovementTypeBadge } from '@/components/stock-movements/stock-movement-type-badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -23,19 +35,31 @@ import { formatCurrency, formatDate, formatDecimal } from '@/lib/format';
 import { roleFromId } from '@/lib/role';
 import { cn } from '@/lib/utils';
 
+const itemDetailSearchSchema = z.object({
+  historyPage: z.number().int().min(1).default(1),
+});
+
 const Route = createFileRoute('/_authed/items/$itemId/')({
+  validateSearch: itemDetailSearchSchema,
   component: ItemDetailPage,
 });
 
 function ItemDetailPage() {
   const { itemId } = Route.useParams();
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const { data: me } = useMe();
   const role = roleFromId(me?.roleId ?? null);
   const canEdit = role !== 'Employee';
 
   const { data: itemData, isLoading, error, refetch } = useItem(itemId);
   const { data: stock, isLoading: isLoadingStock } = useItemStock(itemId);
+  const {
+    data: history,
+    isLoading: isLoadingHistory,
+    error: historyError,
+    refetch: refetchHistory,
+  } = useItemStockHistory(itemId, { page: search.historyPage });
   const deleteItem = useDeleteItem();
 
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -43,6 +67,86 @@ function ItemDetailPage() {
     itemId: string;
     current: string;
   } | null>(null);
+
+  const handleHistoryPageChange = (newPage: number) => {
+    void navigate({ to: '.', search: { ...search, historyPage: newPage } });
+  };
+
+  const historyColumns = useMemo<ColumnDef<ItemStockHistoryItem, unknown>[]>(
+    () => [
+      dateColumn<ItemStockHistoryItem>('Fecha', 'createdAt', true),
+      {
+        id: 'type',
+        header: 'Tipo',
+        accessorFn: (row) => row.type,
+        cell: ({ row }) => <StockMovementTypeBadge type={row.original.type} />,
+      },
+      {
+        id: 'warehouses',
+        header: 'Depósito',
+        accessorFn: (row) => row,
+        cell: ({ row }) => {
+          const m = row.original;
+          if (m.type === 'transfer') {
+            return (
+              <span className="text-xs text-muted-foreground">
+                {m.fromWarehouseName ?? '—'}
+                <ArrowsLeftRightIcon className="mx-1 inline size-3" />
+                {m.toWarehouseName ?? '—'}
+              </span>
+            );
+          }
+          const name = m.toWarehouseName ?? m.fromWarehouseName ?? '—';
+          return <span className="text-xs text-muted-foreground">{name}</span>;
+        },
+      },
+      {
+        id: 'quantity',
+        header: 'Cantidad',
+        accessorFn: (row) => row.quantity,
+        cell: ({ row }) => {
+          const q = Number(row.original.quantity);
+          const sign = row.original.type === 'in' ? '+' : row.original.type === 'out' ? '-' : '±';
+          const color =
+            row.original.type === 'in'
+              ? 'text-emerald-600'
+              : row.original.type === 'out'
+                ? 'text-red-600'
+                : 'text-muted-foreground';
+          return (
+            <span className={cn('font-mono', color)}>
+              {sign}
+              {Number.isNaN(q) ? row.original.quantity : q.toString()}
+            </span>
+          );
+        },
+      },
+      {
+        id: 'runningBalance',
+        header: 'Saldo',
+        accessorFn: (row) => row.runningBalance,
+        cell: ({ getValue }) => (
+          <span className="font-mono text-xs">{formatDecimal(getValue() as string | null)}</span>
+        ),
+      },
+      textColumn<ItemStockHistoryItem>('Sucursal', 'branchName'),
+      {
+        id: 'notes',
+        header: 'Notas',
+        accessorFn: (row) => row.notes,
+        cell: ({ getValue }) => {
+          const v = getValue();
+          if (!v) return <span className="text-xs text-muted-foreground">—</span>;
+          return (
+            <span className="line-clamp-1 max-w-xs text-xs text-muted-foreground" title={String(v)}>
+              {String(v)}
+            </span>
+          );
+        },
+      },
+    ],
+    [],
+  );
 
   if (isLoading) {
     return (
@@ -222,10 +326,29 @@ function ItemDetailPage() {
         )}
       </section>
 
-      <section className="rounded-lg border border-dashed border-border bg-card/50 p-4 text-xs text-muted-foreground">
-        El historial de movimientos de stock se mostrará en{' '}
-        <span className="font-mono">/stock-movements?itemId={item.id}</span> cuando esté
-        implementado (Sprint 2.3).
+      <section className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">Historial de movimientos</h2>
+          <Link
+            to="/stock-movements"
+            search={{ itemId: item.id }}
+            className="text-xs text-muted-foreground hover:underline"
+          >
+            Ver todos
+          </Link>
+        </div>
+        <DataTable
+          data={history?.data ?? []}
+          columns={historyColumns}
+          meta={history?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
+          onPageChange={handleHistoryPageChange}
+          isLoading={isLoadingHistory}
+          error={historyError}
+          onRetry={() => void refetchHistory()}
+          emptyTitle="Sin movimientos"
+          emptyDescription="Este item aún no tiene movimientos de stock registrados."
+          caption="Historial de movimientos del item"
+        />
       </section>
 
       <Dialog
