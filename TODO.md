@@ -934,14 +934,88 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 - **`percentColumn`** helper: formatea `string | number` como "10%". Reusable en cualquier vista que muestre porcentajes (discountPercent, tax, etc).
 - **`fetch` directo para escapar el tipado de `paths`**: cuando el OpenAPI declara `content?: never` (file downloads), no se puede usar `api.GET`. Patrón: helper `BASE_URL` + `fetch` + `URL.createObjectURL`. El error handling parsea el body como JSON para mantener consistencia con `mapApiError`.
 
-### 2.5 Stock crítico — HU-017 (front)
-- [ ] `src/api/queries/use-recommendations.ts`: `useRecommendations({ page, limit, status, type, branchId })`, `useRecommendation(id)`, `useUpdateRecommendationStatus()`
-- [ ] `src/routes/_authed/recommendations/index.tsx`: tabla con `type` (restock/retention/seasonal/pricing/trend), `priority` (high/medium/low badge), `description`, `itemId` (badge con link a item), `customerId` (si es retention), `branch`, `status`, `generatedAt`
-- [ ] `<Dialog>` de detail: descripción completa, item, customer (si aplica), `expiresAt`, transiciones de status permitidas (`pending → applied/dismissed`)
-- [ ] Acciones inline en la fila: marcar como aplicada o dismissed
-- [ ] Default `?status=pending` (mostrar solo accionables). Toggle "Ver histórico" para ver aplicadas/dismissed
-- [ ] Badge en sidebar con count de recommendations pending (HU-035 partial, contar via `useRecommendations({ status: 'pending', limit: 1 })` y leer `meta.total`)
-- [ ] RoleGuard: Admin/Manager para PATCH (cambiar status), todos lectura
+### 2.5 Stock crítico — HU-017 (front) ✅ cerrada
+- [x] `src/lib/schemas/recommendation.ts` con `listRecommendationsQuerySchema` (page, type, status, itemId, branchId, openId) + tipos
+- [x] `src/lib/query-keys.ts`: `recommendationKeys` factory (lists/list/details/detail) + `notificationKeys` factory (all/unread)
+- [x] `src/api/queries/use-recommendations.ts`: 3 hooks (`useRecommendations`, `useRecommendation`, `useUpdateRecommendationStatus`) tipados con `paths`
+- [x] `src/api/queries/use-notifications.ts`: 3 hooks (`useNotifications` con polling 60s, `useMarkRecommendationRead`, `useMarkAllRecommendationsRead`) tipados con `paths`
+- [x] `src/components/recommendations/recommendation-type-badge.tsx`: 5 variants (restock=default, pricing=secondary, retention=destructive, trend/seasonal=outline) con iconos
+- [x] `src/components/recommendations/recommendation-priority-badge.tsx`: 3 variants (high=destructive, medium=default, low=secondary)
+- [x] `src/components/recommendations/recommendation-status-badge.tsx`: 3 variants (pending=secondary, applied=default, dismissed=outline)
+- [x] `src/components/recommendations/recommendation-detail-dialog.tsx`: Dialog con descripción completa, item/customer/branch links, fechas (generatedAt, expiresAt, readAt), botones de acción contextuales (solo si `status === 'pending' && canWrite`)
+- [x] `src/components/notifications/notifications-bell.tsx`: BellIcon en topbar con badge de count + Popover con secciones "Recomendaciones" (top 5) y "Stock bajo" (top 5) + "Marcar todas leídas" + link "Ver todas las recomendaciones"
+- [x] `src/components/ui/popover.tsx`: primitive nuevo (vía `pnpm dlx shadcn@latest add popover`)
+- [x] `src/routes/_authed/recommendations/index.tsx`: DataTable con `type (badge), priority (badge), description (truncada), item (link), customer (link solo si retention), branchName, status (badge), generatedAt`. Filtros: `type` (5 + "Todos") + `status` (4 valores: Pendientes/Todas/Aplicadas/Descartadas). Default `status=pending`. Acciones: "Ver detalle" → abre Dialog. Soporta deep-link `?openId=...` desde la campana.
+- [x] `src/components/layout/topbar.tsx`: `<NotificationsBell>` integrado al lado del user dropdown
+- [x] Polling: `useNotifications` con `refetchInterval: 60_000` (1 min). Patrón estándar de notificaciones en SPA (AGENTS §17).
+- [x] Deep-link campana → detail: `notifications-bell` click en una rec → `useMarkRecommendationRead.mutate({id})` + navegar a `/recommendations?status=pending&openId=...`. La lista detecta `openId` y abre el Dialog.
+- [x] RoleGuard: Admin/Manager para PATCH (cambiar status), todos lectura. Front oculta botones según rol.
+
+**Notas de cierre 2.5:**
+
+**Lo que se hizo:**
+- **Schemas** con `listRecommendationsQuerySchema` que incluye `openId: z.string().uuid().optional()` para el deep-link. `status` default es `'pending'` (no `null` como en otros list schemas).
+- **3 hooks** en `use-recommendations.ts`:
+  - `useRecommendations(query, options?)` con scope-by-branch (Admin: `currentBranchId()`; Manager/Employee: el back filtra). Filtros: `type` (5 values nullable), `status` (3 values nullable), `itemId`, `branchId`. `as never` cast (mismo patrón que 1.8/1.9/2.2/2.3/2.4).
+  - `useRecommendation(id)` con `enabled: id.length > 0`.
+  - `useUpdateRecommendationStatus({ id, status })` con tipo discriminado: el body es `Exclude<RecommendationStatus, 'pending'>` (solo permite `applied` o `dismissed`). Invalidaciones cross-cutting: `recommendationKeys.lists()` + `recommendationKeys.detail(id)` + `notificationKeys.unread({})`.
+- **3 hooks** en `use-notifications.ts`:
+  - `useNotifications(query)` con `refetchInterval: 60_000` (polling 1 min) y `staleTime: 30_000`. Devuelve `{recommendations[], lowStock[], unreadCount}`.
+  - `useMarkRecommendationRead({ id })` que invalida `notificationKeys.unread({})` y `recommendationKeys.lists()`.
+  - `useMarkAllRecommendationsRead({ branchId? })` resetea las queries de notifications y recommendations.
+- **3 badges** de recommendations: type (5 variants con iconos de phosphor), priority (3 variants), status (3 variants).
+- **`<RecommendationDetailDialog>`** que muestra la info completa del `useRecommendation(id)` con los 3 badges (type, priority, status), descripción, branch, item (link si existe), customer (link si existe), y las 3 fechas. Botones contextuales: si `status === 'pending' && canWrite`, muestra "Marcar aplicada" + "Descartar". Si no, solo "Cerrar".
+- **`<NotificationsBell>`** con BellIcon + badge rojo con count (99+ si excede). Popover con header "Notificaciones" + "Marcar todas leídas" (visible solo si `unreadCount > 0`), sección "Recomendaciones" (top 5) y "Stock bajo" (top 5) con links a detail/low-stock, footer con "Ver todas las recomendaciones" → `/recommendations`. Click en recommendation: marca como leída + navega a `/recommendations?status=pending&openId=...`. Click en lowStock item: navega a `/stock-movements/low-stock`.
+- **Lista de recommendations** con `<DataTable>` + filtros (type + status) + soporte de `openId` en search schema para auto-abrir el detail dialog. Status filter con 4 valores: "Pendientes" (default, value='pending') / "Todas" (value=null) / "Aplicadas" / "Descartadas".
+- **`<Popover>` primitive** agregado vía shadcn CLI. El CLI lo creó en una ruta incorrecta (`@/components/ui/popover.tsx` en la raíz del proyecto); lo moví manualmente a `src/components/ui/popover.tsx` y limpié la carpeta vacía.
+
+**Decisiones de implementación:**
+- **No hay detail page de recommendation, solo Dialog desde la lista.** Las recommendations son short-lived (meses), no tiene sentido tener URLs shareables. Decisión confirmada en planning.
+- **No hay badge en el sidebar.** La campana en el topbar es el único punto de entrada a las notifications. Decisión confirmada en planning. Matchea el patrón de Slack/GitHub/Linear.
+- **Las acciones están en el Dialog, no inline en la fila.** En tablas largas, los inline buttons hacen ruido visual. Decisión confirmada en planning.
+- **Optimistic update del `unreadCount`**: implementación con `onMutate` + `onError` rollback en `useMarkRecommendationRead`. Patrón estándar de TanStack Query. (El sprint 2.4 no usó optimistic updates en sales, pero acá tiene sentido porque el click es instantáneo y la latencia del back es perceptible).
+- **El openId en la URL** se usa para deep-link desde la campana. Si el user abre `/recommendations?openId=xyz` directamente, el detail se abre solo. La query string se limpia al cerrar el dialog (`onOpenChange(false)` quita `openId`).
+- **El polling de notifications** consume 1 query permanente mientras la pestaña está visible. `refetchInterval: 60_000` (1 min). El TODO 3.5 lo iba a hacer con polling explícito; lo trajimos a 2.5 porque las notifications son parte del sprint 2.5 (campana + lista).
+- **El detail dialog puede mostrar recomendaciones con `status !== 'pending'`** (sin botones de acción). Útil para revisar el histórico desde la lista.
+- **`useCallback` para `handleViewDetail` y `handlePageChange`**: biome exige deps exhaustivas en el `useMemo` de las columns. `useCallback` mantiene la referencia estable entre renders.
+- **El `useEffect` con `openId` y `setOpenId` en la lista** es external sync (search params → state local). AGENTS §2.1.2 lo justifica. Sin él, el deep-link no abriría el Dialog.
+
+**Discrepancias con el plan original del TODO:**
+- "Badge en sidebar con count" → **NO se implementó como badge en el sidebar**. Se implementó como campana en el topbar (decisión del user, más visible y estándar). El TODO lo mencionaba como "HU-035 partial" — el TODO 3.5 también lo menciona. Decisión: implementar la campana completa en 2.5 cubre ambos.
+- "Acciones inline en la fila" → **NO**. Acciones en el Dialog. Decisión del user.
+- "Toggle 'Ver histórico'" → **NO como toggle**, sino como filtro `status` con 4 valores. Más granular (ver solo aplicadas o solo descartadas).
+- "Detail page de recommendation" → **NO se creó ruta aparte**. Dialog desde la lista. Decisión del user.
+- "RoleGuard: Admin/Manager para PATCH" → respetado (front oculta botones según rol).
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (bundle del shell: ~456 KB gz ~137 KB, +1 KB gz sobre 2.4)
+- `pnpm run lint` ✅ (1 info preexistente de Biome 2.5; 1 `useCallback` agregado para deps exhaustivas; 7 files formateados por Biome)
+- `pnpm run routes:gen` ✅ (1 ruta actualizada: `/recommendations` reemplaza el placeholder)
+- E2E smoke: dev server responde 200 en `/recommendations` y `/recommendations?status=pending` y `/recommendations?openId=...`
+
+**Verificación manual pendiente (checklist para el browser):**
+- [ ] Login Admin → ver campana en topbar (al lado del user dropdown). Si hay recommendations pending → badge con count.
+- [ ] Click en campana → Popover abierto con 2 secciones: "Recomendaciones" (top 5) y "Stock bajo" (top 5) + footer con "Ver todas las recomendaciones".
+- [ ] Click en una recommendation en la campana → marca como leída (optimistic, count baja) + navega a `/recommendations?status=pending&openId=...` + Dialog del detail abierto.
+- [ ] En el Dialog con status `pending` (Admin/Manager): "Marcar aplicada" → status cambia → Dialog se cierra → la fila en la lista se actualiza a "Aplicada".
+- [ ] En el Dialog con status `pending`: "Descartar" → status cambia a "Descartada" → Dialog se cierra.
+- [ ] Login → `/recommendations?status=pending` → solo pending. Cambiar a "Todas" → todas. Cambiar a "Aplicadas" → solo aplicadas. Cambiar a "Descartadas" → solo descartadas.
+- [ ] Filtro por type: "Restock" → solo recomendaciones de restock. "Retención" → solo retention.
+- [ ] Login Employee → ve la lista, ve el detail Dialog (puede leer), pero NO ve los botones "Marcar aplicada" / "Descartar".
+- [ ] Login Manager → ve los botones.
+- [ ] En la campana: click "Marcar todas leídas" → el count baja a 0, las recommendations se vacían del Popover (optimistic).
+- [ ] En la campana: click en un item de "Stock bajo" → navega a `/stock-movements/low-stock`. El Popover se cierra.
+- [ ] Deep-link: abrir `/recommendations?openId=xyz` directamente → Dialog se abre automáticamente con la recommendation correspondiente.
+- [ ] **Errores**: PATCH con status inválido → 400 con mensaje del back. Si el back está caído, el bell muestra error en el `error` state del query.
+- [ ] Polling: dejar la pestaña abierta 1+ min → la campana se actualiza automáticamente (sin refresh manual).
+
+**Patrones nuevos para reusar en próximos sprints:**
+- **`<Popover>` primitive** (sprint 2.5): disponible en `src/components/ui/popover.tsx`. Reusable en cualquier menu contextual (no solo notifications). El CLI lo agregó en una ruta incorrecta; patrón a tener en cuenta para futuros sprints con shadcn add.
+- **Campana de notificaciones con badge de count + Popover**: patrón estándar de notificaciones in-app. Reusable para otros tipos de notifications (ej. "stock bajo" en una org nueva). El polling con `refetchInterval: 60_000` es el patrón.
+- **Deep-link con `openId` en search params**: la lista detecta el `openId` y abre el detail Dialog automáticamente. Patrón para URLs shareables de detail sin necesidad de tener una ruta aparte.
+- **Optimistic update del `unreadCount`** en `useMarkRecommendationRead`: `onMutate` snapshot + `onError` rollback. Patrón para cualquier "marcar como leído".
+- **Botones contextuales en Dialog según status**: en el detail dialog, los botones se muestran condicionalmente según `status === 'pending' && canWrite`. Patrón para cualquier Dialog con acciones stateful.
 
 ---
 
@@ -1091,7 +1165,7 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 |------|---------------------|----------------|--------|
 | Fase 0 — Fundación | Setup, auth, infra | 100% | ✅ cerrada (0.1, 0.2, 0.3, 0.4) |
 | Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 7/10 sub-secciones (branch context, items, categories, units, branches, users, org) | ⏳ en progreso |
-| Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 3/10 sub-secciones (provider-orders, stock-movements, sales) | ⏳ en progreso |
+| Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 4/10 sub-secciones (provider-orders, stock-movements, sales, recommendations) | ⏳ en progreso |
 | Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 0% | ⏳ pendiente |
 | Fase 4 — Pulido | Polish + a11y + perf + role security | 0% | ⏳ pendiente |
 | Fase 5 — Deploy | Pages + CORS prod | 0% | ⏳ pendiente |

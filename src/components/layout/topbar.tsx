@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { useMe, useSignOut } from '@/api/queries/use-auth';
 import { BranchSelector } from '@/components/layout/branch-selector';
+import { NotificationsBell } from '@/components/notifications/notifications-bell';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -39,29 +40,32 @@ function Topbar() {
         </SidebarTrigger>
         <BranchSelector />
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button variant="ghost" size="sm">
-              <UserIcon className="size-4" />
-              <span className="hidden sm:inline">{me?.name ?? me?.email ?? 'Cuenta'}</span>
-            </Button>
-          }
-        />
-        <DropdownMenuContent align="end" className="min-w-44">
-          <DropdownMenuLabel>{me ? `${me.name} · ${me.email}` : 'Mi cuenta'}</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem disabled>Perfil</DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={handleSignOut}
-            disabled={signOut.isPending}
-          >
-            <SignOutIcon className="size-4" />
-            <span>{signOut.isPending ? 'Cerrando…' : 'Cerrar sesión'}</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex items-center gap-1">
+        <NotificationsBell />
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button variant="ghost" size="sm">
+                <UserIcon className="size-4" />
+                <span className="hidden sm:inline">{me?.name ?? me?.email ?? 'Cuenta'}</span>
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="end" className="min-w-44">
+            <DropdownMenuLabel>{me ? `${me.name} · ${me.email}` : 'Mi cuenta'}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled>Perfil</DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={handleSignOut}
+              disabled={signOut.isPending}
+            >
+              <SignOutIcon className="size-4" />
+              <span>{signOut.isPending ? 'Cerrando…' : 'Cerrar sesión'}</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }

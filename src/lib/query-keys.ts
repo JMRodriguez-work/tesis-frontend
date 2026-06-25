@@ -104,3 +104,16 @@ export const stockMovementKeys = {
     [...stockMovementKeys.all, 'item-history', itemId, q] as const,
   lowStock: (q: object) => [...stockMovementKeys.all, 'low-stock', q] as const,
 };
+
+export const recommendationKeys = {
+  all: ['recommendations'] as const,
+  lists: () => [...recommendationKeys.all, 'list'] as const,
+  list: (q: object) => [...recommendationKeys.lists(), q] as const,
+  details: () => [...recommendationKeys.all, 'detail'] as const,
+  detail: (id: string) => [...recommendationKeys.details(), id] as const,
+};
+
+export const notificationKeys = {
+  all: ['notifications'] as const,
+  unread: (q: object) => [...notificationKeys.all, 'unread', q] as const,
+};
