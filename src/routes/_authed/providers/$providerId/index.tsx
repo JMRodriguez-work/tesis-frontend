@@ -1,10 +1,15 @@
 import { ArrowLeftIcon, PencilSimpleIcon, TrashIcon, WarningIcon } from '@phosphor-icons/react';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { useMemo, useState } from 'react';
 import { useMe } from '@/api/queries/use-auth';
+import { type ProviderOrder, useProviderOrders } from '@/api/queries/use-provider-orders';
 import { useProvider } from '@/api/queries/use-providers';
+import { currencyColumn, dateColumn, numberColumn } from '@/components/data-table/column-defs';
+import { DataTable } from '@/components/data-table/data-table';
 import { ErrorState } from '@/components/feedback/error-state';
 import { Skeleton } from '@/components/feedback/skeleton';
+import { ProviderOrderStatusBadge } from '@/components/provider-orders/provider-order-status-badge';
 import { ProviderDeleteDialog } from '@/components/providers/provider-delete-dialog';
 import { ProviderEditDialog } from '@/components/providers/provider-edit-dialog';
 import { ProviderStatusBadge } from '@/components/providers/provider-status-badge';
@@ -26,9 +31,30 @@ function ProviderDetailPage() {
   const canDelete = role === 'Admin';
 
   const { data: provider, isLoading, error, refetch } = useProvider(providerId);
+  const {
+    data: recentOrders,
+    isLoading: isLoadingRecentOrders,
+    error: recentOrdersError,
+    refetch: refetchRecentOrders,
+  } = useProviderOrders({ providerId, page: 1, limit: 5 });
 
   const [editing, setEditing] = useState(false);
   const [toDelete, setToDelete] = useState(false);
+
+  const recentOrdersColumns = useMemo<ColumnDef<ProviderOrder, unknown>[]>(
+    () => [
+      dateColumn<ProviderOrder>('Fecha', 'createdAt', true),
+      numberColumn<ProviderOrder>('Items', 'itemCount'),
+      currencyColumn<ProviderOrder>('Total', 'total'),
+      {
+        id: 'status',
+        header: 'Estado',
+        accessorFn: (row: ProviderOrder) => row.status,
+        cell: ({ row }) => <ProviderOrderStatusBadge status={row.original.status} />,
+      },
+    ],
+    [],
+  );
 
   if (isLoading) {
     return (
@@ -111,8 +137,29 @@ function ProviderDetailPage() {
         </dl>
       </section>
 
-      <section className="rounded-lg border border-dashed border-border bg-card/50 p-4 text-xs text-muted-foreground">
-        Las órdenes de este proveedor se mostrarán cuando esté implementado (Sprint 2.2, HU-018).
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">Órdenes recientes</h2>
+          <Link
+            to="/provider-orders"
+            search={{ providerId: provider.id }}
+            className="text-xs text-foreground hover:underline"
+          >
+            Ver todas las órdenes
+          </Link>
+        </div>
+        <DataTable
+          data={recentOrders?.data ?? []}
+          columns={recentOrdersColumns}
+          meta={recentOrders?.meta ?? { page: 1, limit: 5, total: 0, totalPages: 1 }}
+          onPageChange={() => {}}
+          isLoading={isLoadingRecentOrders}
+          error={recentOrdersError}
+          onRetry={() => void refetchRecentOrders()}
+          emptyTitle="Sin órdenes"
+          emptyDescription="Este proveedor aún no tiene órdenes registradas."
+          caption={`Órdenes recientes de ${provider.name}`}
+        />
       </section>
 
       <ProviderEditDialog

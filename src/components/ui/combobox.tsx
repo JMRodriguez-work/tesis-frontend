@@ -1,7 +1,7 @@
-import { Combobox } from '@base-ui/react/combobox';
-import { CaretDownIcon, CheckIcon, XIcon } from '@phosphor-icons/react';
-import * as React from 'react';
-import { cn } from '@/lib/utils';
+import { Combobox } from "@base-ui/react/combobox";
+import { CaretDownIcon, CheckIcon, XIcon } from "@phosphor-icons/react";
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
 export type ComboboxItem = {
   label: string;
@@ -26,8 +26,8 @@ function ComboboxField({
   value,
   onValueChange,
   label,
-  placeholder = 'Seleccioná una opción',
-  emptyMessage = 'Sin resultados',
+  placeholder = "Seleccioná una opción",
+  emptyMessage = "Sin resultados",
   disabled,
   className,
   triggerClassName,
@@ -35,13 +35,18 @@ function ComboboxField({
 }: ComboboxFieldProps) {
   const generatedId = React.useId();
   const fieldId = id ?? generatedId;
-  const selected = value === null ? null : (items.find((item) => item.value === value) ?? null);
+  const selected =
+    value === null
+      ? null
+      : (items.find((item) => item.value === value) ?? null);
 
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      <label htmlFor={fieldId} className="text-xs font-medium">
-        {label}
-      </label>
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      {label ? (
+        <label htmlFor={fieldId} className="text-xs font-medium">
+          {label}
+        </label>
+      ) : null}
       <Combobox.Root
         items={items}
         value={selected}
@@ -58,7 +63,9 @@ function ComboboxField({
         >
           <Combobox.Value placeholder={placeholder} />
           <Combobox.Icon
-            render={<CaretDownIcon className="pointer-events-none size-4 text-muted-foreground" />}
+            render={
+              <CaretDownIcon className="pointer-events-none size-4 text-muted-foreground" />
+            }
           />
         </Combobox.Trigger>
         <Combobox.Portal>
@@ -85,7 +92,7 @@ function ComboboxField({
               <Combobox.List className="max-h-72 overflow-y-auto p-0.5">
                 {(item: ComboboxItem) => (
                   <Combobox.Item
-                    key={item.value ?? '__null__'}
+                    key={item.value ?? "__null__"}
                     value={item}
                     className="relative flex w-full cursor-default items-center gap-2 rounded-none py-1.5 pr-8 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
                   >

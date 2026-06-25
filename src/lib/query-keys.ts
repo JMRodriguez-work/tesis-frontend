@@ -58,6 +58,14 @@ export const providerKeys = {
   detail: (id: string) => [...providerKeys.details(), id] as const,
 };
 
+export const providerOrderKeys = {
+  all: ['provider-orders'] as const,
+  lists: () => [...providerOrderKeys.all, 'list'] as const,
+  list: (q: object) => [...providerOrderKeys.lists(), q] as const,
+  details: () => [...providerOrderKeys.all, 'detail'] as const,
+  detail: (id: string) => [...providerOrderKeys.details(), id] as const,
+};
+
 export const warehouseKeys = {
   all: ['warehouses'] as const,
   lists: () => [...warehouseKeys.all, 'list'] as const,

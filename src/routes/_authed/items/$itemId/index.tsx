@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { mapApiError } from '@/lib/api-error';
-import { formatCurrency, formatDate } from '@/lib/format';
+import { formatCurrency, formatDate, formatDecimal } from '@/lib/format';
 import { roleFromId } from '@/lib/role';
 import { cn } from '@/lib/utils';
 
@@ -169,39 +169,52 @@ function ItemDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {stock.map((row) => (
-                <tr key={row.warehouseId} className="border-b last:border-0">
-                  <td className="py-2">{row.warehouseName}</td>
-                  <td className="py-2">{formatCurrency(row.quantity)}</td>
-                  <td className="py-2">{formatCurrency(row.minStock)}</td>
-                  <td className="py-2">
-                    <Badge
-                      variant={
-                        row.status === 'out'
-                          ? 'destructive'
-                          : row.status === 'low'
-                            ? 'secondary'
-                            : 'default'
-                      }
-                    >
-                      {row.status === 'out' ? 'Sin stock' : row.status === 'low' ? 'Bajo' : 'OK'}
-                    </Badge>
-                  </td>
-                  {canEdit ? (
-                    <td className="py-2 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setEditMinStockFor({ itemId: item.id, current: row.minStock })
+              {stock.map((row) => {
+                const unitAbbr = item.baseUnit?.abbreviation;
+                return (
+                  <tr key={row.warehouseId} className="border-b last:border-0">
+                    <td className="py-2">{row.warehouseName}</td>
+                    <td className="py-2">
+                      {formatDecimal(row.quantity)}
+                      {unitAbbr ? (
+                        <span className="ml-1 text-muted-foreground">{unitAbbr}</span>
+                      ) : null}
+                    </td>
+                    <td className="py-2">
+                      {formatDecimal(row.minStock)}
+                      {unitAbbr ? (
+                        <span className="ml-1 text-muted-foreground">{unitAbbr}</span>
+                      ) : null}
+                    </td>
+                    <td className="py-2">
+                      <Badge
+                        variant={
+                          row.status === 'out'
+                            ? 'destructive'
+                            : row.status === 'low'
+                              ? 'secondary'
+                              : 'default'
                         }
                       >
-                        Editar mín.
-                      </Button>
+                        {row.status === 'out' ? 'Sin stock' : row.status === 'low' ? 'Bajo' : 'OK'}
+                      </Badge>
                     </td>
-                  ) : null}
-                </tr>
-              ))}
+                    {canEdit ? (
+                      <td className="py-2 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            setEditMinStockFor({ itemId: item.id, current: row.minStock })
+                          }
+                        >
+                          Editar mín.
+                        </Button>
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         ) : (
