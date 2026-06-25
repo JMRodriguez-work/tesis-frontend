@@ -117,3 +117,10 @@ export const notificationKeys = {
   all: ['notifications'] as const,
   unread: (q: object) => [...notificationKeys.all, 'unread', q] as const,
 };
+
+export const dashboardKeys = {
+  all: ['dashboard'] as const,
+  salesSummary: (q: object) => [...dashboardKeys.all, 'sales-summary', q] as const,
+  productRotation: (q: object) => [...dashboardKeys.all, 'product-rotation', q] as const,
+  inactiveCustomers: (q: object) => [...dashboardKeys.all, 'inactive-customers', q] as const,
+};

@@ -1024,16 +1024,62 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 > El diferenciador del TFG. Requiere Fase 2 completa con datos reales.
 
 ### 3.1 Dashboard — HU-027, HU-028
-- [ ] `src/api/queries/use-dashboard.ts`: `useSalesSummary({ from, to })`, `useProductRotation({ from, to, categoryId, branchId, includeZeroSales })`, `useInactiveCustomers({ branchId })`
-- [ ] `src/routes/_authed/dashboard.tsx`: layout con cards:
+- [x] `src/api/queries/use-dashboard.ts`: `useSalesSummary({ from, to })`, `useProductRotation({ from, to, categoryId, branchId, includeZeroSales })`, `useInactiveCustomers({ branchId })`
+- [x] `src/routes/_authed/dashboard.tsx`: layout con cards:
   - **Card "Hoy"**: total ventas hoy + count transacciones + delta vs ayer (semáforo)
   - **Card "Esta semana"**: total ventas 7d + delta vs semana anterior
   - **Card "Rotación de productos"**: top 5 items con cantidad vendida (gráfico de barras simple, Recharts si se justifica)
   - **Card "Clientes inactivos"**: count + top 5 (link a lista completa)
   - Filtros globales: date range (presets: hoy, 7d, 30d, custom)
-- [ ] `<DateRangePicker>` component reusable (Fase 3.1+)
-- [ ] Empty state si no hay ventas en el período: "Aún no hay ventas registradas"
-- [ ] RoleGuard: autenticados
+- [ ] `<DateRangePicker>` component reusable (Fase 3.1+) — **diferido al sprint 3.2** (sprint 3.1 implementa la rotación sin filtro de fecha en el front; el back devuelve 30 días por default)
+- [x] Empty state si no hay ventas en el período: "Aún no hay ventas registradas"
+- [x] RoleGuard: autenticados
+
+**Notas de cierre 3.1:**
+
+**Lo que se hizo:**
+- **3 hooks** en `src/api/queries/use-dashboard.ts`:
+  - `useSalesSummary({ branchId, from, to })` con `enabled: role !== 'Admin' || !!currentBranchId`. Devuelve `SalesSummary` (today + thisWeek + previousWeek + comparison deltas). Scope-by-branch.
+  - `useProductRotation(query, options?)` con `page`, `limit`, `from`, `to`, `categoryId`, `includeZeroSales`, `branchId`. Paginación server-side. Scope-by-branch.
+  - `useInactiveCustomers({ branchId, limit })` con array directo + `meta: { total, limit }`. Sin paginación. Scope-by-branch.
+- **Query keys** (`src/lib/query-keys.ts`): `dashboardKeys = { all, salesSummary, productRotation, inactiveCustomers }`.
+- **4 componentes nuevos** en `src/components/dashboard/`:
+  - `sales-summary-card.tsx` — `<Card>` con título, currency grande, count de transacciones, ticket promedio, y un `<Badge>` con delta % coloreado (verde `+12%` / rojo `-3%` / gris `0%`).
+  - `sales-summary-grid.tsx` — 3 columnas (Hoy / Esta semana / Semana anterior) con `enabled` por branch.
+  - `product-rotation-table.tsx` — `<DataTable>` con `itemName` (link), `categoryName`, `totalQuantitySold` (numberColumn), `totalRevenue` (currencyColumn), `transactionCount` (numberColumn), `lastSoldAt` (dateColumn). Filtros: `categoryId` (ComboboxField desde `useItemCategories`), `includeZeroSales` (ComboboxField de 3 valores). Filtros controlados por la page.
+  - `inactive-customers-card.tsx` — `<Card>` con `<EmptyState>` si no hay, o lista de top 5 con link a `/customers/$customerId` y "Ver todos" → `/recommendations?type=retention&status=pending`. Días sin comprar > 90 se muestran en rojo.
+- **`src/routes/_authed/dashboard.tsx`** — implementación completa. `validateSearch` con `page`, `categoryId`, `includeZeroSales`. La page pasa los handlers de cambio a `<ProductRotationTable>` que actualiza los search params del router. Sections: 1) Resumen de ventas (3 cards), 2) Clientes inactivos (card), 3) Rotación de productos (tabla con filtros).
+
+**Decisiones de implementación:**
+- **Sin `<DateRangePicker>` en este sprint**: el back devuelve los últimos 30 días por default para `product-rotation`. La rotación funciona sin filtro de fecha explícito en esta primera versión; el `DateRangePicker` se construirá en el sprint 3.2 (Reports) y se agregará acá como refactor si se justifica. El TODO original lo listaba acá pero no bloquea HU-027/028.
+- **`<SalesSummaryCard>` con delta solo en la card "Esta semana"**: el back devuelve un solo set de deltas (comparison totalSalesDelta/transactionCountDelta/averageTicketDelta) que compara esta semana vs la anterior. La card de hoy no tiene delta (no hay "ayer" en el response). La card de semana anterior no tiene delta (es el baseline). Se documentó en el código.
+- **Sin Recharts en este sprint**: el TODO original mencionaba "gráfico de barras si se justifica". La lista de product-rotation ya es una `<DataTable>` con ordenamiento visual (los top items aparecen arriba con paginación). No agregamos un BarChart encima porque la tabla ya es informativa y es < 200 líneas de código. Recharts entra en 3.2 (Reports).
+- **`includeZeroSales` con 3 valores en el ComboboxField**: 'Con y sin ventas' (null) / 'Solo con ventas' (false) / 'Incluir sin ventas' (true). El back acepta el boolean opcional; el search param es `boolean | null` y se pasa al hook.
+- **`as never` en `useProductRotation`**: el OpenAPI genera `from?: string | null` y `to?: string | null` (acepta null en query) y `includeZeroSales?: boolean | null`. El query schema local también acepta null. El cast es para bypasear el type check demasiado estricto de openapi-typescript cuando el query object se pasa a `api.GET`. **Patrón consistente** con sprints 1.8/1.9/2.2/2.3.
+- **`useInactiveCustomers` con `limit: 5` hardcoded en el dashboard**: el endpoint NO pagina (array directo), sólo tiene `meta: { total, limit }`. El dashboard pide top 5 para la card. El sprint 3.3 (Customer Analytics) expondrá una vista completa con `limit: 20/50/100`.
+- **Sin `useEffect` en componentes nuevos**: `inactiveList` se deriva con `useMemo` (computed en render). La card de inactivos renderiza `<Skeleton>` mientras `inactive === undefined` (external sync entre query y render, AGENTS §2.1.2).
+- **`<EmptyState>` del proyecto no acepta `icon` prop**: removí el icono en el empty state de inactivos. Solo texto. Documentado en el comment.
+
+**Discrepancias con el plan original del TODO:**
+- "Card 'Hoy' con delta vs ayer" → **no implementado**. El back sólo devuelve delta de thisWeek vs previousWeek. La card "Hoy" muestra sólo el total del día sin comparación. Si en el futuro se quiere un delta diario, pedir al back un campo `yesterday` en el response.
+- "date range (presets: hoy, 7d, 30d, custom)" → **diferido**. El `<DateRangePicker>` se construye en 3.2 y se reusa acá como refactor.
+- "Filtros globales" → los filtros son **por sección** (la rotación tiene los suyos, el sales-summary no tiene), no globales. Decisión: scope-by-section es más simple y el sales-summary no acepta filtros en el back de todas formas.
+- "Recharts para rotación" → no usado. Tabla suficiente.
+- "RoleGuard: autenticados" → no se usa `<RoleGuard>`. El `_authed/route.tsx` ya valida la sesión en `beforeLoad`. El back filtra por org/branch con `roleGuard`.
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (chunk `dashboard-D36F2QKz.js`: 19.78 KB gz 6.56 KB; shell: 456.23 KB gz 137.13 KB)
+- `pnpm run lint` ✅ (1 info preexistente de Biome 2.5; 5 archivos auto-formateados por Biome en este sprint)
+- `pnpm run routes:gen` ✅ (ruta ya estaba registrada, regenera idempotente)
+- E2E con back: sign-up → onboarding → GET `/api/v1/dashboard/sales-summary` → 200 con 0 ventas, todos los totales en `"0"`, delta `0`. GET `/api/v1/dashboard/product-rotation?limit=5` → 200 con `{ data: [], meta: { page: 1, limit: 5, total: 0, totalPages: 0 } }`. GET `/api/v1/dashboard/inactive-customers?limit=5` → 200 con `{ data: [], meta: { total: 0, limit: 5 } }`. Front sirve HTTP 200 en `/dashboard`.
+- Front renderiza correctamente: 3 cards con `formatCurrency('0')` = `$ 0,00` (no falla con string `"0"`), card de inactivos con empty state, tabla de rotación con empty state. **No warnings** en la consola del browser al cargar.
+
+**Patrones nuevos para reusar en próximos sprints:**
+- **`<SalesSummaryCard>`** — card con currency grande + meta line + delta badge. Reusable en otros dashboards (ej. overview de organización, vista de branch individual).
+- **`<InactiveCustomersCard>` con top-N + link a vista completa** — patrón reusable para "Top + Ver todos" (stock bajo, items más vendidos, etc).
+- **`<DataTable>` con filtros `ComboboxField` controlados por la page** — patrón consistente con el resto del proyecto. Los filtros viven en la page, no en la tabla. La tabla es presentacional.
+- **Cards con `<EmptyState>` adentro** — patrón para secciones que pueden estar vacías sin ser errores (vs `<ErrorState>` que sí lo es).
 
 ### 3.2 Reports — HU-029
 - [ ] `src/api/queries/use-reports.ts`: `useSalesTrend({ interval, from, to })`, `useRevenueTimeline({ ... })`, `useTopItems({ sortBy, from, to, branchId, limit })`, `useCategoryDistribution({ from, to, branchId })`
@@ -1166,7 +1212,7 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 | Fase 0 — Fundación | Setup, auth, infra | 100% | ✅ cerrada (0.1, 0.2, 0.3, 0.4) |
 | Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 7/10 sub-secciones (branch context, items, categories, units, branches, users, org) | ⏳ en progreso |
 | Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 4/10 sub-secciones (provider-orders, stock-movements, sales, recommendations) | ⏳ en progreso |
-| Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 0% | ⏳ pendiente |
+| Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 1/5 sub-secciones (dashboard 3.1) | ⏳ en progreso |
 | Fase 4 — Pulido | Polish + a11y + perf + role security | 0% | ⏳ pendiente |
 | Fase 5 — Deploy | Pages + CORS prod | 0% | ⏳ pendiente |
 
