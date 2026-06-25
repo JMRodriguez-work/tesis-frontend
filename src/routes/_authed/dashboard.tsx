@@ -7,6 +7,12 @@ import { ProductRotationTable } from '@/components/dashboard/product-rotation-ta
 import { SalesSummaryGrid } from '@/components/dashboard/sales-summary-grid';
 import { Skeleton } from '@/components/feedback/skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  type DateRange,
+  DateRangePicker,
+  parseISODate,
+  toISODate,
+} from '@/components/ui/date-range-picker';
 import { useCurrentBranchId } from '@/hooks/use-branch';
 import { roleFromId } from '@/lib/role';
 import { listProductRotationQuerySchema } from '@/lib/schemas/dashboard';
@@ -15,6 +21,8 @@ const dashboardSearchSchema = listProductRotationQuerySchema.pick({
   page: true,
   categoryId: true,
   includeZeroSales: true,
+  from: true,
+  to: true,
 });
 
 const Route = createFileRoute('/_authed/dashboard')({
@@ -63,6 +71,21 @@ function DashboardPage() {
     [navigate, search],
   );
 
+  const handleRangeChange = useCallback(
+    (range: DateRange) => {
+      void navigate({
+        to: '.',
+        search: { ...search, from: toISODate(range.from), to: toISODate(range.to), page: 1 },
+      });
+    },
+    [navigate, search],
+  );
+
+  const rotationRange = useMemo<DateRange>(
+    () => ({ from: parseISODate(search.from), to: parseISODate(search.to) }),
+    [search.from, search.to],
+  );
+
   const inactiveList = useMemo(() => inactive?.data ?? [], [inactive]);
 
   return (
@@ -108,9 +131,14 @@ function DashboardPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium">Rotación de productos</h2>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="text-sm font-medium">Rotación de productos</h2>
+          <DateRangePicker value={rotationRange} onChange={handleRangeChange} />
+        </div>
         <ProductRotationTable
           page={search.page}
+          from={search.from}
+          to={search.to}
           categoryId={search.categoryId}
           includeZeroSales={search.includeZeroSales}
           onPageChange={handlePageChange}

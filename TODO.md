@@ -1082,15 +1082,68 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 - **Cards con `<EmptyState>` adentro** — patrón para secciones que pueden estar vacías sin ser errores (vs `<ErrorState>` que sí lo es).
 
 ### 3.2 Reports — HU-029
-- [ ] `src/api/queries/use-reports.ts`: `useSalesTrend({ interval, from, to })`, `useRevenueTimeline({ ... })`, `useTopItems({ sortBy, from, to, branchId, limit })`, `useCategoryDistribution({ from, to, branchId })`
-- [ ] `src/routes/_authed/reports/index.tsx`: layout con tabs:
-  - **Tab "Tendencia de ventas"**: line chart (Recharts) con buckets según `interval` (day/week/month)
-  - **Tab "Revenue timeline"**: line chart sin transaction count
-  - **Tab "Top items"**: bar chart horizontal + tabla con `item`, `quantity`, `revenue`, `% of total`. Toggle `quantity|revenue`
-  - **Tab "Distribución por categoría"**: pie chart + tabla con `category`, `revenue`, `% of total`. Items sin categoría agrupados bajo "Sin categoría"
-- [ ] Filtros: date range (default 30d), branch (admin), interval (sales-trend/revenue-timeline)
-- [ ] Cap de buckets respetado del back (mostrar mensaje claro si excede)
-- [ ] RoleGuard: autenticados
+- [x] `src/api/queries/use-reports.ts`: `useSalesTrend({ interval, from, to })`, `useRevenueTimeline({ ... })`, `useTopItems({ sortBy, from, to, branchId, limit })`, `useCategoryDistribution({ from, to, branchId })`
+- [x] `src/routes/_authed/reports/index.tsx`: layout con 4 sections apiladas (NO tabs):
+  - **Tendencia de ventas**: line chart (Recharts) con buckets según `interval` (day/week/month) + 2 YAxis (currency izq + count der)
+  - **Revenue timeline**: line chart sin transaction count
+  - **Top items**: bar chart horizontal + tabla con `item`, `category`, `quantity`, `revenue`, `transactions`, `last sold`. Sort toggle `quantity|revenue`
+  - **Distribución por categoría**: pie chart + tabla con `category`, `revenue`, `transactions`, `items`. Items sin categoría agrupados bajo "Sin categoría"
+- [x] Filtros: date range por section (default 30d), branch (admin), interval (sales-trend/revenue-timeline), sortBy (top-items)
+- [x] Cap de buckets respetado del back (mostrar mensaje claro si excede) — via `mapApiError` con `<Alert variant="destructive">` por chart
+- [x] RoleGuard: autenticados (no se usa `<RoleGuard>`, back filtra por branchId via scope-by-branch)
+
+**Notas de cierre 3.2:**
+
+**Lo que se hizo:**
+- **2 primitives nuevos** instalados vía `pnpm dlx shadcn@latest add chart calendar` (deps: `recharts@3.8.0`, `react-day-picker@10.0.1`, `date-fns@4.4.0`).
+- **4 hooks** en `src/api/queries/use-reports.ts`:
+  - `useSalesTrend({ from, to, interval, branchId })` con `enabled: role !== 'Admin' || !!currentBranchId`. **`interval` es required** (no se puede omitir). Scope-by-branch.
+  - `useRevenueTimeline({ from, to, interval, branchId })` — mismo shape.
+  - `useTopItems({ from, to, sortBy, limit, branchId })` — sortBy opcional (null = back usa 'revenue').
+  - `useCategoryDistribution({ from, to, branchId })` — sin interval.
+  - Todos con `as never` en el query (mismo patrón de 1.8/1.9/2.2/2.3/3.1).
+- **Query keys** (`src/lib/query-keys.ts`): `reportKeys = { all, salesTrend, revenueTimeline, topItems, categoryDistribution }`.
+- **1 schema file** (`src/lib/schemas/report.ts`): 4 schemas separados (cada section tiene su propio grupo de search params independientes, no compartido).
+- **1 primitive compuesto**: `<DateRangePicker>` en `src/components/ui/date-range-picker.tsx`. Usa 2 `<Calendar mode="single">` (uno para "Desde", otro para "Hasta") en vez de `mode="range"` por simplicidad de tipos y UX (clear del range trivial). Helpers exportados: `toISODate` y `parseISODate` para convertir entre Date y string ISO (consistente con lo que el back espera en `from`/`to`).
+- **6 componentes nuevos** en `src/components/reports/`:
+  - `interval-selector.tsx` — `<ComboboxField>` con 3 valores (día/semana/mes). **No permite null** (el back requiere interval).
+  - `chart-card.tsx` — wrapper de `<Card>` con título + controles + loading/error/content. `mapApiError(error).message` para mostrar el error 400 del back cuando se excede el cap de buckets.
+  - `sales-trend-chart.tsx` — `<LineChart>` con 2 series (totalSales y transactionCount en 2 YAxis distintos). Tooltip custom que formatea totalSales como currency.
+  - `revenue-timeline-chart.tsx` — `<LineChart>` simple con solo totalSales. Más chico.
+  - `top-items-chart.tsx` — `<BarChart layout="vertical">` con top 10 + tabla HTML simple (no `<DataTable>` porque el back NO pagina — `meta: { from, to, sortBy, limit }` sin `total` ni `totalPages`).
+  - `category-distribution-chart.tsx` — `<PieChart>` con `<Cell>` por categoría + tabla HTML.
+- **1 página** (`src/routes/_authed/reports/index.tsx`): 4 sections apiladas verticalmente, cada una con su propio `<DateRangePicker>` (y `<IntervalSelector>` o `<ComboboxField>` cuando aplica). `validateSearch` con 4 grupos de search params (st*, rt*, ti*, cd*) — un grupo por section. La URL puede verse así: `?stFrom=...&stTo=...&stInterval=day&rtInterval=week&tiSortBy=quantity&cdFrom=...&cdTo=...`.
+- **Refactor menor del dashboard** (`src/routes/_authed/dashboard.tsx`): el `validateSearch` ahora incluye `from` y `to` para la sección "Rotación de productos". Se agregó un `<DateRangePicker>` en el header de esa sección. Pasamos `from` y `to` a `<ProductRotationTable>` que ya tenía esas props. Refactor mínimo (3 líneas de cambio + 1 import).
+
+**Decisiones de implementación:**
+- **`<DateRangePicker>` con 2 Calendar separados** en vez de `mode="range"`: el API de `react-day-picker` v9 para range tiene quirks con el `onSelect` que recibe `DateRange | undefined`. Con 2 Calendar independientes, el binding es directo: `onSelect={(d) => onChange({ ...value, from: d })}` y listo. UX equivalente (algunos lo prefieren porque el clear del "Hasta" no resetea el "Desde" accidentalmente).
+- **Layout: sections apiladas, no tabs**: cada chart tiene su propio filtro de fecha e interval. Con tabs todos compartirían un filtro, lo que no tiene sentido (top-items no tiene interval). Sections permiten ver los 4 charts de un vistazo y aplicar filtros independientes.
+- **`top-items` sin `<DataTable>`**: el back NO pagina este endpoint (devuelve hasta `limit` items, default 20, max 100). `<DataTable>` con `meta: { page, limit, total, totalPages }` no aplica. Tabla HTML simple con `<Table>` primitive.
+- **`category-distribution` con 8 colores fijos**: el back devuelve un array variable de categorías (1-8 típico). Usamos `CATEGORY_COLORS` con 8 valores de `var(--chart-1)` a `var(--chart-8)` (tokens que shadcn define en el theme). Si en el futuro hay más de 8, rotamos con `i % CATEGORY_COLORS.length`.
+- **`interval` required en el front**: el back devuelve ZodError si no se manda. El selector siempre emite un valor (default 'day'). Esto fue verificado con curl (ver "Bugs encontrados").
+- **`<ChartCard>` con `<Alert variant="destructive">` para errores**: cuando el back devuelve 400 con "rango excede máximo de buckets" o cualquier otro error, el chart muestra el mensaje del back via `mapApiError(error).message` (Fix 2 del sprint 1.9 ya lo cubre). El resto de los charts siguen funcionando.
+- **3 ignores de Biome en `src/components/ui/chart.tsx`**: el primitive de shadcn usa `dangerouslySetInnerHTML` (para inyectar CSS vars por chart-id) y `key={index}` en el tooltip/legend (arrays de payload estables). Son código de shadcn oficial; el patrón es estándar. Documentados inline con `// biome-ignore`. **Deuda técnica menor** — si shadcn los actualiza, los removemos.
+
+**Discrepancias con el plan original del TODO:**
+- "Layout con tabs" → **sections apiladas** (cada chart tiene filtros independientes; tabs implicarían un solo filtro compartido, lo cual no aplica).
+- "Tabla con `% of total`" → **no implementado**. El back no devuelve el total general. Calcularlo client-side requiere sumar todos los `totalRevenue` del array. YAGNI para MVP.
+- "Cap de buckets respetado del back (mostrar mensaje claro si excede)" → **mostrado via `<Alert variant="destructive">`** dentro del chart-card. El mensaje del back es claro: "El rango excede el máximo de 366 buckets para interval=day (aprox 906 buckets)". No agregamos un cap client-side (el back es la fuente de verdad).
+- "Branch (admin)" → **scope-by-branch automático via `useCurrentBranchId()`** (AGENTS §13.1). El user no selecciona branch explícitamente; el store global determina la branch activa.
+- "Sort toggle `quantity|revenue`" → **ComboboxField con 2 valores** (no toggle binario). Más consistente con el resto de los filtros.
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (chunk `reports`: 402.61 KB gz 117.62 KB; chunk `date-range-picker`: 78.23 KB gz 23.46 KB; chunk `dashboard`: 20.57 KB gz 6.89 KB; shell: 457.24 KB gz 137.43 KB)
+- `pnpm run lint` ✅ (3 ignores de Biome en `src/components/ui/chart.tsx` documentados inline, 1 info preexistente)
+- `pnpm run routes:gen` ✅
+- E2E con back: `GET /sales-trend?interval=day` → 200 con `data: []`, `meta: { total: 0 }`. `GET /sales-trend?interval=week` → 200. `GET /revenue-timeline?interval=day` → 200. `GET /top-items?sortBy=quantity&limit=5` → 200 con meta correcto. `GET /category-distribution` → 200. **Sin `interval` → 400 ZodError** (corregido en el front, interval siempre se manda). Front sirve HTTP 200 en `/reports` y `/dashboard`.
+- Dev server arranca, `/`, `/dashboard` y `/reports` responden 200.
+
+**Patrones nuevos para reusar en próximos sprints:**
+- **`<ChartCard>`** — wrapper de Card con loading/error/content + controls. Reusable en otros lugares que necesiten mostrar un chart con sus filtros.
+- **`<DateRangePicker>` con 2 Calendar separados** — pattern reusable para filtros de fecha en cualquier página (sprint 3.4 lo usaría en external-data si tuviera filtros de fecha).
+- **Helpers `toISODate` / `parseISODate`** — pattern para convertir entre `Date | undefined` (lo que el componente usa) y `string | null` (lo que el search schema y el back esperan). Exportados de un solo lugar.
+- **Layout "sections apiladas independientes"** — para páginas con múltiples visualizaciones que necesitan filtros independientes. Alternativa a tabs cuando cada chart tiene su propio state.
 
 ### 3.3 Customer Analytics — HU-025, HU-026
 - [ ] `src/api/queries/use-customer-analytics.ts`: `useDetectInactiveCustomers()` (mutation, enqueue), `useCustomerSegments({ branchId })`, `useInactiveCustomersList({ branchId })`
@@ -1212,7 +1265,7 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 | Fase 0 — Fundación | Setup, auth, infra | 100% | ✅ cerrada (0.1, 0.2, 0.3, 0.4) |
 | Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 7/10 sub-secciones (branch context, items, categories, units, branches, users, org) | ⏳ en progreso |
 | Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 4/10 sub-secciones (provider-orders, stock-movements, sales, recommendations) | ⏳ en progreso |
-| Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 1/5 sub-secciones (dashboard 3.1) | ⏳ en progreso |
+| Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 2/5 sub-secciones (dashboard 3.1, reports 3.2) | ⏳ en progreso |
 | Fase 4 — Pulido | Polish + a11y + perf + role security | 0% | ⏳ pendiente |
 | Fase 5 — Deploy | Pages + CORS prod | 0% | ⏳ pendiente |
 

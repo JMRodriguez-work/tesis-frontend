@@ -124,3 +124,11 @@ export const dashboardKeys = {
   productRotation: (q: object) => [...dashboardKeys.all, 'product-rotation', q] as const,
   inactiveCustomers: (q: object) => [...dashboardKeys.all, 'inactive-customers', q] as const,
 };
+
+export const reportKeys = {
+  all: ['reports'] as const,
+  salesTrend: (q: object) => [...reportKeys.all, 'sales-trend', q] as const,
+  revenueTimeline: (q: object) => [...reportKeys.all, 'revenue-timeline', q] as const,
+  topItems: (q: object) => [...reportKeys.all, 'top-items', q] as const,
+  categoryDistribution: (q: object) => [...reportKeys.all, 'category-distribution', q] as const,
+};
