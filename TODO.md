@@ -444,20 +444,150 @@
 - `pnpm run routes:gen` ✅
 
 
-### 1.8 Stock (read-only en Fase 1, write en Fase 2 con sales y provider-orders)
-- [ ] `src/api/queries/use-stock.ts`: `useStockByWarehouse(warehouseId)`, `useStockByItem(itemId)`, `useUpdateMinStock()`
-- [ ] Vista de stock en detail de item (Fase 1.2): tabla por warehouse con `quantity`, `minStock`, `status` (ok/low/out)
-- [ ] Vista de stock en detail de warehouse: tabla de items con mismo shape
-- [ ] `PATCH /items/:id/min-stock` desde detail de item: inline editable
-- [ ] Filtro `?status=low` en lista (status calculado en back, ver §1.8 back)
+### 1.8 Stock (read-only en Fase 1, write en Fase 2 con sales y provider-orders) ✅ cerrada
+- [x] `src/api/queries/use-stock.ts`: `useStockByWarehouse(warehouseId, query)` con filtros `page`, `limit`, `search`, `status` (low/ok/out)
+- [x] Vista de stock en detail de item (1.2, preexistente): tabla por warehouse con `quantity`, `minStock`, `status`, botón "Editar mín." por fila
+- [x] Vista de stock en detail de warehouse: DataTable con items, mismo shape, paginación server-side
+- [x] `PATCH /items/:id/min-stock` desde detail de item: dialog reusado (existente desde 1.2)
+- [x] Filtro `?status=low` en detail de warehouse (ComboboxField: Todos / OK / Bajo / Sin stock)
 
-### 1.9 Customers — HU-020, HU-021, HU-022
-- [ ] `src/lib/schemas/customer.ts` con `createCustomerSchema`, `updateCustomerSchema`
-- [ ] `src/api/queries/use-customers.ts`: `useCustomers({ page, limit, branchId, isActive, search })`, `useCustomer(id)`, `useCreateCustomer()`, `useUpdateCustomer()`, `useDeleteCustomer()`
-- [ ] `src/routes/_authed/customers/index.tsx`: tabla con `fullname`, `email`, `phone`, `branch` (badge), `isActive`, acciones
-- [ ] `<Dialog>` create/edit con form
-- [ ] `src/routes/_authed/customers/$customerId/index.tsx`: detail con `useCustomer(id)` + `useCustomerSales(id)` (HU-022: última compra + clasificación — viene de Fase 3, mostrar placeholder)
-- [ ] RoleGuard: Admin/Manager write, todos lectura
+**Notas de cierre 1.8:**
+
+**Lo que se hizo:**
+- `useStockByWarehouse(warehouseId, query)` en `src/api/queries/use-stock.ts` (1 hook, tipado con `paths`, sin casts).
+- `stockKeys.byWarehouse(warehouseId, q)` factory en `src/lib/query-keys.ts`.
+- `<StockStatusBadge status={status}>` en `src/components/stock/stock-status-badge.tsx` (1 componente, 1 archivo) — variant destructive/secondary/default según `out`/`low`/`ok`.
+- Detail page de warehouse: `src/routes/_authed/warehouses/$warehouseId/index.tsx`. Usa `<DataTable>` con paginación server-side, `<ComboboxField>` para filtro de status (con `value: null` para "Todos"), `<Input>` con search debounced 300ms, y `<EditMinStockDialog>` reusado desde 1.2.
+- Link desde la lista de warehouses: el nombre de cada row en `/warehouses` ahora es un `<Link to="/warehouses/$warehouseId">` (cambio mínimo en `index.tsx`).
+
+**Lo que YA estaba hecho y no se reimplementó:**
+- `useItemStock(itemId)` en `src/api/queries/use-items.ts:97` (consumido por el detail de item, lo dejamos donde está por compatibilidad con 1.2).
+- `useUpdateMinStock()` en `src/api/queries/use-items.ts:187`.
+- `<EditMinStockDialog>` en `src/components/items/edit-min-stock-dialog.tsx`.
+- Tabla de stock inline en el detail de item (`items/$itemId/index.tsx:156-210`).
+- `updateMinStockSchema` en `src/lib/schemas/item.ts:48`.
+
+**Decisiones de implementación:**
+- **`useItemStock` se queda en `use-items.ts`, no en `use-stock.ts`.** El TODO lo listaba en `use-stock.ts` pero ya estaba implementado y testeado en 1.2. Moverlo ahora rompería la nota de cierre 1.2 sin motivo. La regla "un hook por dominio" en este caso es "use-stock = stock-por-warehouse (read paginado de un depósito)", "use-items = stock-de-un-item (read de un item, simple)". Documentado acá.
+- **`minStock` se edita a nivel item, no warehouse.** El `PATCH /items/{id}/min-stock` actualiza el `minStock` del item en TODOS los depósitos, no en uno solo. El botón "Editar mín." por fila del detail de warehouse refleja esto: edita el item, no la fila del depósito. Si en el futuro se quiere editar el minStock por warehouse, hay que pedirle al back un endpoint nuevo (`PATCH /warehouses/{id}/items/{itemId}/min-stock`).
+- **El detail de item NO se refactorizó a `<DataTable>`.** El `GET /items/{id}/stock` no pagina (array directo, sin meta). Tabla HTML simple es suficiente para 1-5 warehouses que tiene típicamente un item.
+- **Búsqueda: `<Input>` con debounce 300ms en el search de stock.** Reusado del patrón de warehouses/items. La query key se reconstruye con el `debouncedSearch` (no con el valor crudo del input) — patrón de 1.7.
+- **`status: null` en search params = "Todos".** El `validateSearch` de TanStack Router permite `z.enum([...]).nullable().default(null)`. La URL queda `?status=null` o no incluye el param; el back lo ignora cuando no está.
+- **El handler de status en `<ComboboxField>` valida que el `value: string | null` recibido sea uno de los 3 valores válidos** antes de meterlo en search. El wrapper da `string | null`; el search schema exige `'ok' | 'low' | 'out' | null`. Cast seguro inline (`=== 'ok' || === 'low' || === 'out'`). Si no matchea, va a `null`.
+- **`refetchStock()` después de editar `minStock`:** la mutación en `useUpdateMinStock` invalida `itemKeys.stock(id)`, pero el detail de warehouse usa `stockKeys.byWarehouse(warehouseId, q)`. Hay que refetchear manualmente el stock del warehouse. Lo hago en el `onSaved` del dialog.
+
+**Discrepancias con el plan original del TODO:**
+- El TODO listaba "inline editable" para el min-stock. **No se interpretó como inline-edit en la fila, sino como botón + dialog.** El botón "Editar mín." abre un `<Dialog>` con input. Es lo que se hizo en 1.2 y se mantuvo. Si querés "inline editable" en sentido estricto (sin dialog, edición en la celda), se puede refactorizar después.
+- El TODO decía `useUpdateMinStock()` en `use-stock.ts`. **Ya estaba en `use-items.ts` desde 1.2.** No se movió.
+- El TODO listaba `useStockByItem(itemId)`. **Ya estaba como `useItemStock` en `use-items.ts` desde 1.2.** No se renombró.
+- El TODO asumía que existía detail de warehouse (1.7). **No existía** (1.7 sólo hizo la lista). Se creó desde cero en este sprint.
+
+**Lo que se encontró pre-existente (no introducido por este sprint):**
+- `pnpm run lint` reporta 3 errores en `src/components/layout/sidebar.tsx` y `src/components/ui/sidebar.tsx` (format + organizeImports). **Son pre-existentes** del shadcn init, no los introducimos. Los sprints anteriores también los arrastran (la nota de cierre 1.7 dice `1 info pre-existente de Biome 2.5` — el contador cambió de `info` a errores pero son los mismos archivos).
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (chunk `_warehouseId-...js`: 8.86 KB gz 3.93 KB; chunk `warehouses` lista: 19.31 KB gz 6.50 KB; shell: 446.66 KB gz 134.63 KB)
+- `pnpm run lint` ✅ en archivos del sprint (3 errores pre-existentes en `sidebar.tsx`, ajenos al sprint)
+- `pnpm run routes:gen` ✅ (nueva ruta `/warehouses/$warehouseId` detectada)
+- `pnpm run api:types` ✅ regenerado contra `http://localhost:8787/doc` (los tipos de stock ya estaban pero se revalidaron)
+
+**Patrones nuevos para reusar en próximos sprints:**
+- `<StockStatusBadge>` con variant dinámico según `status` (reusable para cualquier vista que muestre status: dashboard, low-stock list, reports, etc.).
+- Search schema con `z.enum([...]).nullable().default(null)` + `<ComboboxField>` con `value: null` para "Todos" — patrón estándar para filtros de tipo enum.
+- `useStockByWarehouse` como template para queries de tipo "paginados con search + status enum".
+
+### 1.9 Customers — HU-020, HU-021, HU-022 ✅ cerrada
+- [x] `src/lib/schemas/customer.ts` con `createCustomerSchema`, `updateCustomerSchema`, `listCustomersQuerySchema` (tipos `CreateCustomerInput`/`FormValues` separados con `z.input`/`z.infer`)
+- [x] `src/api/queries/use-customers.ts`: `useCustomers`, `useCustomer`, `useCreateCustomer`, `useUpdateCustomer`, `useDeleteCustomer`, `useCustomerSales` (6 hooks, tipados con `paths`, sin casts)
+- [x] `src/components/customers/customer-status-badge.tsx`: badge active/inactive
+- [x] `src/components/customers/customer-create-dialog.tsx`: form (fullname req + email/phone/address opcionales + isActive)
+- [x] `src/components/customers/customer-edit-dialog.tsx`: mismo shape, `reset()` con data del customer en `useEffect`
+- [x] `src/components/customers/customer-delete-dialog.tsx`: dialog simple de 2 botones (sin input del nombre — ver nota)
+- [x] `src/routes/_authed/customers/index.tsx`: DataTable con `fullname` (link a detail), `email`, `phone`, `branch`, `isActive`. Filtros: search debounced, showInactive. Paginación server-side. Botón "Nuevo cliente" (Admin/Manager).
+- [x] `src/routes/_authed/customers/$customerId/index.tsx`: detail con 4 cards de summary (totalSpent, purchaseCount, lastPurchaseAt, averageTicket) + DataTable de ventas paginada con toggle "Incluir canceladas". Placeholder para segmentación (HU-025/026, sprint 3.3).
+- [x] RoleGuard: Admin/Manager write (POST/PUT/DELETE), todos lectura.
+
+**Notas de cierre 1.9:**
+
+**Lo que se hizo:**
+- **Schemas** con `nullableOptionalString/Email/Phone` que convierten string vacío a `undefined` (create) y un `updateCustomerSchema` con `.nullable().optional()` para los campos opcionales (edit permite `null` explícito para limpiar).
+- **6 hooks** en `use-customers.ts`:
+  - `useCustomers(query, options)` con `enabled: role !== 'Admin' || !!currentBranchId` (patrón de items 1.2).
+  - `useCustomer(id)` con `enabled: id.length > 0`.
+  - `useCreateCustomer({ body, branchId })` con `cleanBody` que filtra undefined. El `branchId` se manda sólo si está definido (Admin con branch activa).
+  - `useUpdateCustomer({ id, body })` con `cleanBody` que filtra undefined y no manda `branchId` (no se reasigna).
+  - `useDeleteCustomer(id)`. Soft-delete (back marca `isActive=false`).
+  - `useCustomerSales(id, query)` con filtros `page`, `limit`, `includeCancelled`. Devuelve `{ data, summary, meta }`.
+- **Status badge** reusa el patrón de `ItemStatusBadge` (variant default/secondary).
+- **3 dialogs** siguiendo el patrón de users/warehouses: `useForm` con `zodResolver`, `useEffect` para `reset` cuando abre, sin `as Resolver<...>`.
+- **Lista** con `<DataTable>` server-side, search debounced 300ms, filtro showInactive, scope-by-branch. Link en el nombre → detail. `<Alert>` si Admin sin branch activa.
+- **Detail** con 4 `<Card size="sm">` para el summary de ventas, `<dl>` para info general, `<Alert>` placeholder para segmentación (sprint 3.3), `<DataTable>` para ventas con ComboboxField "Incluir canceladas" + paginación.
+
+**Decisiones de implementación:**
+- **Scope-by-branch puro, sin `<ComboboxField>` de branch en el form.** El `branchId` se infiere del scope:
+  - Admin: `useCurrentBranchId()` (del store). Si no hay branch activa, el form se deshabilita con `<Alert>` y el botón "Nuevo" no aparece.
+  - Manager/Employee: no se manda `branchId`, el back fuerza su branch.
+  - Edit: no permite reasignar branch (no se manda `branchId` en el PUT).
+  - Consistente con AGENTS §13.1 ("NO agregar un filtro de Sucursal en cada página") y con sales 2.4 / provider-orders 2.2 (que también son scope-by-branch).
+- **Delete con dialog simple (sin input del nombre) — decisión del user.** Esto es **inconsistente con branches (1.5), users (1.6), warehouses (1.7), categories (1.3)** que usan confirmación destructiva con input del nombre. Razón de la decisión: probablemente porque un customer no es "tan crítico" como una branch/org. Lo dejo documentado como **deuda técnica** — si en el futuro se quiere unificar el patrón, hay que migrar este dialog.
+- **El `useEffect` con `reset()` en el edit dialog** (AGENTS §2.1.2): external sync entre TanStack Query data y RHF state. Patrón idéntico a BranchEditDialog, CategoryEditDialog, UserEditDialog.
+- **`useCustomerSales` con query key `[...customerKeys.detail(id), 'sales', query]`.** El array de query keys es un poco diferente al estándar (no es un sub-factory como `stockKeys.byWarehouse`). Decisión pragmática: el endpoint es específico del detail, no se invalida junto con `customerKeys.lists()`. El `onSuccess` de `useCreateSale`/`useUpdateSale`/`useCancelSale` (sprint 2.4) deberá invalidar explícitamente este query key.
+- **El summary de ventas en el detail es read-only** (no es editable). Se muestra con 4 `<Card size="sm">` (1 stat cada una). El placeholder de segmentación (vip/frequent/etc) queda para sprint 3.3 con `useCustomerSegments`.
+- **`<Alert>` con copy "Sprint 3.3, HU-025/026"** para el placeholder de segmentación, en vez de esconderlo. Mantiene visible la promesa del producto.
+- **Las ventas canceladas se filtran por default** con `?includeCancelled=false`. El user puede activarlo con el ComboboxField del header. Esto es por defecto seguro (no muestra "ruido" por default).
+- **`customerKeys` factory reusado** del sprint 1.0 (ya existía en `src/lib/query-keys.ts:37`).
+
+**Discrepancias con el plan original del TODO:**
+- "RoleGuard: Admin/Manager write, todos lectura" → no se usó `<RoleGuard>` (consistente con el resto del proyecto: branches, users, warehouses — el back valida con `roleGuard`, el front oculta botones según rol).
+- "detail con `useCustomer(id)` + `useCustomerSales(id)` (HU-022: última compra + clasificación — viene de Fase 3, mostrar placeholder)" → se hizo completo: el summary de ventas está vivo (4 cards), y el segment queda como placeholder en `<Alert>`.
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (chunk `customers-...js`: 9.56 KB gz 3.85 KB; chunk `_customerId-...js`: 10.14 KB gz 4.06 KB; shell: 447.61 KB gz 134.87 KB)
+- `pnpm run lint` ✅ en archivos del sprint (3 errores pre-existentes en `sidebar.tsx`, ajenos al sprint — arrastrados desde 1.8)
+- `pnpm run routes:gen` ✅ (2 rutas nuevas: `/customers`, `/customers/$customerId`)
+- `pnpm run api:types` ✅ regenerado contra el back
+
+
+**Patrones nuevos para reusar en próximos sprints:**
+- **Schemas con `nullableOptionalString/Email/Phone`** que convierten `''` → `undefined` (create) + `updateSchema` con `.nullable().optional()` (edit) — patrón estándar para campos opcionales editables.
+- **`<Card size="sm">` con 3 niveles (Description + Title)** para mostrar stats en grid — reusable en dashboard, customer detail, sales detail.
+- **`useCustomerSales` con query key compuesta** — template para futuros endpoints "read-paginated-of-a-parent-resource" (ej. `useCustomerRecommendations`, `useCustomerNotifications`).
+- **`<Alert>` placeholder de funcionalidad futura** con copy del sprint correspondiente — patrón para no esconder features prometidas.
+
+---
+
+## Fixes posteriores al cierre del sprint 1.9
+
+### Fix 1: `isActive` rechazado por el back en `PUT /customers/{id}`
+
+**Bug encontrado en testing manual:** el back devuelve 400 con `ZodError: Unrecognized key(s) in object: 'isActive'` cuando el front manda `isActive` en el PUT. La OpenAPI dice que `isActive` está permitido, pero el back realmente lo rechaza.
+
+**Decisión:** sacar `isActive` del `updateCustomerSchema` y del edit dialog. El front ya no manda `isActive` en el PUT. El campo `isActive` del customer se puede ver en la lista y detail (read-only via `GET`), pero no se puede toggle desde la UI.
+
+**Patrón para próximos sprints:** si un campo aparece en el OpenAPI pero el back lo rechaza en runtime, no confiar en el OpenAPI. Pedir un endpoint dedicado al back (`PATCH /customers/{id}/active`) si se necesita toggle desde la UI — mismo patrón que `user.role` (que tiene su propio `/users/{id}/role`) y que `item.minStock` (que tiene su propio `/items/{id}/min-stock`).
+
+**Deuda técnica:** si en el futuro se quiere poder activar/desactivar customers desde el detail, hay que pedir al back un endpoint `PATCH /customers/{id}/active` con body `{ isActive: boolean }` y agregarlo a `use-customers.ts`.
+
+### Fix 2: `mapApiError` no parseaba ZodError → "Error desconocido"
+
+**Bug:** cuando el back devuelve errores de validación 400, lo hace con formato Zod nativo:
+```json
+{ "success": false, "error": { "issues": [{ "code": "...", "message": "...", "path": [...] }], "name": "ZodError" } }
+```
+
+El `mapApiError` original buscaba solo `{ message: string }` en el top-level y caía al fallback "Error desconocido" en este caso.
+
+**Fix:** extendido `src/lib/api-error.ts` con un detector `isZodErrorEnvelope` y un formateador `formatZodErrorMessage` que:
+- Para `code: 'unrecognized_keys'` con `keys: ['isActive']` → `"Campo no permitido: isActive"`
+- Para `code: 'invalid_type' | 'too_small' | 'too_big' | 'invalid_string'` → `"path: message"` (ej: `"email: Expected string, received number"`)
+- Para múltiples issues → join con ` · ` (ej: `"fullname: min 1 · email: Invalid email"`)
+- Si no hay `issues` pero hay `error.message` → usa el `message` interno.
+
+**Compatibilidad:** los errores 4xx/5xx del back que ya venían con `{ message: string }` siguen funcionando igual (caso 3 en los tests). El cambio es aditivo.
+
+**Beneficio cross-sprint:** todos los sprints anteriores (1.2 a 1.8) que usen `mapApiError(err).message` en toasts ahora muestran mensajes legibles en lugar de "Error desconocido" cuando el back devuelve un 400 de validación Zod. No hace falta tocar ninguno de esos call sites.
 
 ### 1.10 DataTable genérico (reusable)
 - [ ] `src/components/data-table/data-table.tsx` con `useReactTable` + TanStack Table v8

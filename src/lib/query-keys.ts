@@ -71,3 +71,9 @@ export const organizationKeys = {
   details: () => [...organizationKeys.all, 'detail'] as const,
   detail: (id: string) => [...organizationKeys.details(), id] as const,
 };
+
+export const stockKeys = {
+  all: ['stock'] as const,
+  byWarehouse: (warehouseId: string, q: object) =>
+    [...stockKeys.all, 'warehouse', warehouseId, q] as const,
+};

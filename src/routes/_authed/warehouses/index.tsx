@@ -1,10 +1,11 @@
 import { BuildingsIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { useMe } from '@/api/queries/use-auth';
 import { useWarehouses, type Warehouse } from '@/api/queries/use-warehouses';
-import { actionsColumn, textColumn } from '@/components/data-table/column-defs';
+import { actionsColumn } from '@/components/data-table/column-defs';
 import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { ComboboxField, type ComboboxItem } from '@/components/ui/combobox';
@@ -74,9 +75,22 @@ function WarehousesPage() {
     });
   };
 
-  const columns = useMemo(
+  const columns = useMemo<ColumnDef<Warehouse, unknown>[]>(
     () => [
-      textColumn<Warehouse>('Nombre', 'name'),
+      {
+        id: 'name',
+        header: 'Nombre',
+        accessorFn: (row: Warehouse) => row.name,
+        cell: ({ row }) => (
+          <Link
+            to="/warehouses/$warehouseId"
+            params={{ warehouseId: row.original.id }}
+            className="font-medium text-foreground hover:underline"
+          >
+            {row.original.name}
+          </Link>
+        ),
+      },
       {
         id: 'description',
         header: 'Descripción',
