@@ -1,14 +1,10 @@
 import { EyeIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { z } from 'zod';
 import { useMe } from '@/api/queries/use-auth';
-import {
-  type Category,
-  useDeleteCategory,
-  useItemCategories,
-} from '@/api/queries/use-item-categories';
+import { type Category, useItemCategories } from '@/api/queries/use-item-categories';
+import { CategoryDeleteDialog } from '@/components/categories/category-delete-dialog';
 import { CategoryStatusBadge } from '@/components/categories/category-status-badge';
 import { actionsColumn, textColumn } from '@/components/data-table/column-defs';
 import { DataTable } from '@/components/data-table/data-table';
@@ -16,18 +12,9 @@ import { CategoryCreateDialog } from '@/components/items/category-create-dialog'
 import { CategoryEditDialog } from '@/components/items/category-edit-dialog';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { ComboboxField, type ComboboxItem } from '@/components/ui/combobox';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useCurrentBranchId } from '@/hooks/use-branch';
 import { useDebounce } from '@/hooks/use-debounce';
-import { mapApiError } from '@/lib/api-error';
 import { roleFromId } from '@/lib/role';
 import { cn } from '@/lib/utils';
 
@@ -60,8 +47,6 @@ function CategoriesPage() {
   const [editing, setEditing] = useState<Category | null>(null);
   const [toDelete, setToDelete] = useState<Category | null>(null);
 
-  const deleteCategory = useDeleteCategory();
-
   const branchIdForQuery = role === 'Admin' ? currentBranchId : null;
 
   const listQuery = useMemo(
@@ -89,19 +74,6 @@ function CategoriesPage() {
 
   const handleShowInactiveChange = (value: string | null) => {
     void navigate({ to: '.', search: { ...search, showInactive: value === 'true', page: 1 } });
-  };
-
-  const handleDeleteConfirm = () => {
-    if (!toDelete) return;
-    deleteCategory.mutate(toDelete.id, {
-      onSuccess: () => {
-        toast.success('Categoría eliminada');
-        setToDelete(null);
-      },
-      onError: (err) => {
-        toast.error(mapApiError(err).message);
-      },
-    });
   };
 
   const columns = useMemo(
@@ -214,34 +186,13 @@ function CategoriesPage() {
         emptyAction={emptyAction}
       />
 
-      <Dialog
+      <CategoryDeleteDialog
         open={toDelete !== null}
         onOpenChange={(open) => {
           if (!open) setToDelete(null);
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Eliminar categoría</DialogTitle>
-            <DialogDescription>
-              ¿Eliminar <strong>{toDelete?.name}</strong>? Si tiene items activos asociados, la
-              operación fallará.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setToDelete(null)}>
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteConfirm}
-              disabled={deleteCategory.isPending}
-            >
-              {deleteCategory.isPending ? 'Eliminando…' : 'Eliminar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        category={toDelete}
+      />
 
       <CategoryCreateDialog
         open={createOpen}

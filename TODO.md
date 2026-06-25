@@ -219,12 +219,58 @@
 - E2E con back: sign-up → onboarding → POST 3 items con `branchId` → 201 → GET items → 200 con 3 → search → 200 con matches → POST item con `salePrice < purchasePrice` → 201 con `warning` en el response → POST duplicado → 409 con mensaje del back → GET detail → 200 → GET stock → 200 (vacío) → PATCH min-stock → 200 → PUT edit → 200 → DELETE → 200 → GET items con `isActive=false` → 200 con 3 inactivos (soft delete funciona).
 - Front sirve HTTP 200 en `/items`, `/items/new`, `/items/{id}`, `/items/{id}/edit`.
 
-### 1.3 Item Categories
-- [ ] `src/lib/schemas/category.ts` con `createCategorySchema`, `updateCategorySchema`
-- [ ] `src/api/queries/use-categories.ts`: `useCategories({ branchId })`, `useCreateCategory()`, `useUpdateCategory()`, `useDeleteCategory()`
-- [ ] Lista en `/settings` o en un `<Combobox>` reutilizable en el form de items (más probable esto último)
-- [ ] CRUD inline en `/settings` o como `<Dialog>` desde la lista de items
-- [ ] RoleGuard: Admin/Manager write, todos lectura
+### 1.3 Item Categories ✅ cerrada (refactor)
+- [x] `src/lib/schemas/category.ts` con `createCategorySchema`, `updateCategorySchema`
+- [x] `src/api/queries/use-item-categories.ts` con 5 hooks: `useItemCategories`, `useCategory`, `useCreateCategory`, `useUpdateCategory`, `useDeleteCategory` (tipados con `paths`, sin casts)
+- [x] `src/lib/query-keys.ts`: `itemCategoryKeys` factory
+- [x] `src/components/categories/category-status-badge.tsx` y `category-delete-dialog.tsx`
+- [x] `src/components/items/category-create-dialog.tsx` y `category-edit-dialog.tsx`
+- [x] `src/routes/_authed/settings/categories.tsx`: tabla con `name`, `description`, `branch` (badge), `isActive`, acciones; filtros (search debounced, showInactive); paginación server-side; 3 dialogs.
+- [x] `<Combobox>` con `useItemCategories` integrado en `routes/_authed/items/new.tsx`, con botón "Nueva categoría" que abre `<CategoryCreateDialog>` inline.
+- [x] `CategoryCreateDialog.onCreated(category)` setea el `categoryId` del form de items automáticamente.
+- [x] RoleGuard: `canEdit = role === 'Admin' || role === 'Manager'`. El back valida con `roleGuard` en mutations.
+
+**Notas de cierre 1.3 (refactor):**
+
+**Lo que se hizo en este sprint (refactor sobre código preexistente):**
+- El sprint 1.3 ya tenía código escrito (de cuando se implementó items, 1.2), pero el TODO lo mantenía abierto por error histórico. El sprint actual **refactorizó** los dialogs de category para alinearlos con AGENTS §7.5.1 y encontró un bug crítico.
+
+**Bug crítico encontrado y arreglado en `category-edit-dialog.tsx`:**
+- El `onSubmit` tenía un spread roto:
+  ```typescript
+  ...(values.description !== '' ? values.description : { description: null }),
+  ```
+  Esto evaluaba a `description: values.description` (string) o `description: { description: null }` (objeto malformado). Cuando el user borraba la descripción, el back recibía `description: { description: null }` y rompía la request.
+- **Fix**: cambiar a `...(values.description !== '' ? { description: values.description } : { description: null })`. Ahora el body es consistente.
+
+**Anti-patrón del `as Resolver<...>` corregido:**
+- Los 2 dialogs de category usaban el mismo anti-patrón que rompía los dialogs de user: `zodResolver(schema) as Resolver<FormValues>`. En el caso de create category no rompía (los shapes coincidían), pero igual violaba la regla de AGENTS §7.5.1.
+- **Fix**: el form usa `useForm<FormValues, unknown, CreateCategoryInput>` con `FormValues = z.input<typeof createCategorySchema>` y el output type como tercera genérica. El cast desaparece.
+
+**Refactor del delete inline a `<CategoryDeleteDialog>`:**
+- El delete estaba implementado con un `<Dialog>` simple de un solo botón en `/settings/categories.tsx`. Inconsistente con branches/users/warehouses (todos con confirmación destructiva por input del nombre).
+- **Fix**: nuevo componente `src/components/categories/category-delete-dialog.tsx` con input del nombre (patrón AGENTS §12.5). Misma copy de "tiene items activos" que tenía el inline.
+
+**Casts `as Resolver<...>` restantes (deuda técnica documentada):**
+- Quedan 5 casts en el proyecto: `branch-create-dialog`, `branch-edit-dialog`, `organization.tsx`, `items/new.tsx`, `items/$itemId/edit.tsx`. Los dialogs de branch y los de item comparten el mismo anti-patrón.
+- **Por qué no se arreglaron en este sprint**: el alcance acordado fue "solo fix categories + cerrar 1.3". Los dialogs de branch funcionan (los verifiqué en 1.5) y los de item funcionan también (verificados en 1.2). El bug real (mismatch `roleId: string` vs `z.number()`) solo se manifestaba en los dialogs de user, donde el form no matcheaba con el schema.
+- **Riesgo**: si alguien refactoriza los schemas de branch o item en el futuro, los casts pueden empezar a romper. Un sprint futuro debería unificar el patrón: usar `z.input`/`z.output` o schemas con coerción en todos los dialogs. Recomendado cuando se toquen estos archivos por otra razón.
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅
+- `pnpm run lint` ✅ (1 info preexistente de Biome 2.5)
+
+**Verificación manual pendiente (checklist para el browser):**
+- [ ] Login Admin → `/settings/categories` → ver lista.
+- [ ] "Nueva categoría" → completar name + description → "Crear" → 201 → aparece.
+- [ ] "Editar" (pencil) → cambiar el name → "Guardar" → 200.
+- [ ] "Editar" → borrar la descripción → "Guardar" → 200 → el back guarda `description: null` (validar con curl GET).
+- [ ] "Editar" → cambiar isActive a false → "Guardar" → 200.
+- [ ] Intentar eliminar categoría con items activos → 400 → toast con mensaje del back.
+- [ ] Eliminar categoría vacía → tipear nombre → 200 → desaparece.
+- [ ] Login Manager → ver lista y editar/eliminar categorías (no solo Admin).
+- [ ] En `/items/new` → el `<Combobox>` muestra categorías. Click en "Nueva categoría" → abre dialog → crear → vuelve y autoselecciona la nueva.
 
 ### 1.4 Units ✅ cerrada
 - [x] `src/api/queries/use-units.ts`: `useUnits()` (lista global, solo lectura)
@@ -356,13 +402,47 @@
 - `UserChangeRoleDialog` con coordination role↔branch via `useEffect` → template para cualquier form con campos dependientes.
 - `UserDeleteDialog` con input del email → confirma que el patrón de "confirmación destructiva con input" (AGENTS §12.5) es reusable.
 
-### 1.7 Warehouses
-- [ ] `src/lib/schemas/warehouse.ts` con `createWarehouseSchema` (incluye `branchIds: string[]` array de branches asignadas)
-- [ ] `src/api/queries/use-warehouses.ts`: `useWarehouses({ page, limit })`, `useWarehouse(id)`, `useCreateWarehouse()`, `useUpdateWarehouse()`, `useDeleteWarehouse()`, `useAssignWarehouseToBranch()`, `useUnassignWarehouseFromBranch()`
-- [ ] `src/routes/_authed/warehouses/index.tsx`: tabla con `name`, `description`, `branches` (badges), acciones
-- [ ] `<Dialog>` create/edit: input para seleccionar branches asignadas (multi-select)
-- [ ] Soft-delete: 400 si tiene stock > 0 (mensaje del back)
-- [ ] RoleGuard: Admin write, todos lectura
+### 1.7 Warehouses ✅ cerrada
+- [x] `src/lib/schemas/warehouse.ts` con `createWarehouseSchema` (incluye `branchIds: string[]` con `min(1)`), `updateWarehouseSchema`, `assignBranchSchema`, `listWarehousesQuerySchema` (tipos `CreateWarehouseInput`/`FormValues` separados vía `z.input`/`z.infer`)
+- [x] `src/api/queries/use-warehouses.ts`: `useWarehouses({ page, limit })`, `useWarehouse(id)`, `useCreateWarehouse()`, `useUpdateWarehouse()`, `useDeleteWarehouse()`, `useAssignWarehouseToBranch()`, `useUnassignWarehouseFromBranch()` (7 hooks, tipados con `paths`)
+- [x] `src/lib/query-keys.ts`: `warehouseKeys` factory (ya existía desde 1.2, reusado)
+- [x] `src/components/warehouses/warehouse-status-badge.tsx`
+- [x] `src/components/warehouses/warehouse-branches-list.tsx` (helper de badges: ≤2 inline, >2 muestra "+N")
+- [x] `src/components/warehouses/warehouse-create-dialog.tsx`: form con multi-select de branches (checkboxes), `branchIds` requerido, botón "Crear" deshabilitado si no hay branches seleccionadas
+- [x] `src/components/warehouses/warehouse-edit-dialog.tsx`: form (name, description, isActive). **No** edita branches — eso se hace en otro dialog.
+- [x] `src/components/warehouses/warehouse-branches-dialog.tsx`: dialog específico para asignar/desasignar branches. Calcula diff entre state local y `warehouse.branches`, ejecuta mutations en batch (secuencial con `mutateAsync`).
+- [x] `src/components/warehouses/warehouse-delete-dialog.tsx`: confirmación destructiva con input del nombre (mismo patrón que `BranchDeleteDialog` y `UserDeleteDialog`).
+- [x] `src/routes/_authed/warehouses/index.tsx`: DataTable con `name`, `description`, `branches` (badges via `WarehouseBranchesList`), `isActive` (badge), acciones. Filtros: search debounced, showInactive. Paginación server-side. 4 Dialogs. RoleGuard: solo Admin ve botones de write.
+- [x] Soft-delete: 400 "Tiene items con stock > 0" propagado al toast via `mapApiError`.
+
+**Notas de cierre 1.7:**
+
+**Lo que se hizo:**
+- **Schemas y hooks reusables**: el `warehouseKeys` factory ya existía (creado en 1.2 para queries relacionados a stock), así que solo se agregó el `use-warehouses.ts` con los 7 hooks.
+- **Multi-select de branches con checkboxes**: usé checkboxes simples en una lista con scroll (no chips, no popover con búsqueda). Decisión: el set de branches es chico (típico 1-5, máximo ~10), no justifica un componente más complejo. Si una org llega a 30+ branches, refactor a un popover con búsqueda.
+- **`<WarehouseBranchesDialog>` con diff + batch mutations**: el dialog carga el state inicial desde `warehouse.branches` (useEffect cuando abre), mantiene un `Set<string>` local de IDs seleccionadas, y al guardar calcula el diff contra el original. Ejecuta los `assign` y `unassign` en secuencia con `mutateAsync`. Si cualquiera falla, el toast muestra el error y el dialog queda abierto (rollback visual: el state local no se commitea hasta que todos pasan).
+- **POST exige `branchIds: string[]` con min 1**: el back rechaza arrays vacíos. El front valida con Zod y además deshabilita el botón "Crear" si `selectedBranchIds.length === 0` (UX: no se llega al submit con error de validación, se previene antes).
+- **PUT no incluye `branchIds`**: el back tiene endpoints separados para assign/unassign. El edit dialog solo edita name/description/isActive. Documentado en el comment del `DialogDescription` del edit.
+- **DELETE de branches con stock**: el back devuelve 400 "Tiene items con stock > 0" (no 409). El `mapApiError` propaga el mensaje al toast. El copy del `<DialogDescription>` del delete avisa antes de tipear.
+- **`<WarehouseBranchesList>` como helper de badges**: lógica `length <= 2 inline / > 2 con "+N"`. Reusado en la celda de la tabla y queda disponible para detail page (futuro).
+
+**Decisiones de implementación:**
+- **`updateWarehouse` filtra `undefined`**: mismo patrón que `updateUser`. Construye un `cleanBody: Record<string, unknown>` con solo los campos definidos para no enviar `null` cuando el back espera `undefined`.
+- **Asignación de branches en el back es idempotente en unassign pero no en assign**: si dos users asignan la misma branch simultáneamente, uno va a recibir 409 "Ya asignado". El back reporta como error 409 pero en realidad es success (la branch ya está). Por ahora propagamos el error; si en el futuro se quiere tratar como success, agregar manejo de 409 en el dialog.
+- **Asignar por branch individual (no bulk)**: el back expone `POST /warehouses/{id}/branches` con un solo `branchId` por request, no un array. La UI llama N veces (secuencial) si el user selecciona N branches nuevas. Aceptable porque N es chico (típico 1-2). Si en el futuro se vuelve lento, pedir un endpoint bulk al back.
+- **El `useEffect` que resetea `selected` cuando abre el dialog**: AGENTS §2.1.2 lo justifica (external sync entre query data y state local). Sin él, cambiar de warehouse abriría el dialog con el state del warehouse anterior.
+- **Sin `<RoleGuard>` en la ruta**: igual que branches y users, los botones se ocultan según rol. El back valida Admin en mutations.
+
+**Discrepancias con el plan original detectadas en este sprint:**
+- El plan asumía "PUT con `branchIds: string[]` para asignación de branches" → **incorrecto**. El back tiene `POST /warehouses/{id}/branches` y `DELETE /warehouses/{id}/branches/{branchId}` separados. Un branch por request.
+- El plan asumía "branchIds opcional" en el create → **incorrecto**. El back exige `branchIds: string[]` con `minItems: 1`. Un warehouse sin branches no se puede crear.
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (chunk `warehouses`: 21.10 KB gz 6.92 KB; shell: 446 KB gz 134 KB)
+- `pnpm run lint` ✅ (1 info pre-existente de Biome 2.5)
+- `pnpm run routes:gen` ✅
+
 
 ### 1.8 Stock (read-only en Fase 1, write en Fase 2 con sales y provider-orders)
 - [ ] `src/api/queries/use-stock.ts`: `useStockByWarehouse(warehouseId)`, `useStockByItem(itemId)`, `useUpdateMinStock()`

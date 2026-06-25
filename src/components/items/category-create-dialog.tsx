@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { type Resolver, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import type { z } from 'zod';
 import { type Category, useCreateCategory } from '@/api/queries/use-item-categories';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,14 +32,16 @@ function CategoryCreateDialog({
 }: CategoryCreateDialogProps) {
   const createCategory = useCreateCategory();
 
+  type FormValues = z.input<typeof createCategorySchema>;
+
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<CreateCategoryInput>({
-    resolver: zodResolver(createCategorySchema) as Resolver<CreateCategoryInput>,
-    defaultValues: { name: '', description: '', isActive: true },
+  } = useForm<FormValues, unknown, CreateCategoryInput>({
+    resolver: zodResolver(createCategorySchema),
+    defaultValues: { name: '', description: '', isActive: true } as FormValues,
   });
 
   const onSubmit = (values: CreateCategoryInput) => {

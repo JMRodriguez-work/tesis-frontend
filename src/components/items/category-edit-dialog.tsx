@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
-import { type Resolver, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import type { z } from 'zod';
 import { type Category, useUpdateCategory } from '@/api/queries/use-item-categories';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -27,11 +28,7 @@ type CategoryEditDialogProps = {
 function CategoryEditDialog({ open, onOpenChange, category }: CategoryEditDialogProps) {
   const updateCategory = useUpdateCategory();
 
-  type FormValues = {
-    name: string;
-    description: string;
-    isActive: boolean;
-  };
+  type FormValues = z.input<typeof updateCategorySchema>;
 
   const {
     register,
@@ -40,9 +37,9 @@ function CategoryEditDialog({ open, onOpenChange, category }: CategoryEditDialog
     setValue,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({
-    resolver: zodResolver(updateCategorySchema) as Resolver<FormValues>,
-    defaultValues: { name: '', description: '', isActive: true },
+  } = useForm<FormValues, unknown, UpdateCategoryInput>({
+    resolver: zodResolver(updateCategorySchema),
+    defaultValues: { name: '', description: '', isActive: true } as FormValues,
   });
 
   useEffect(() => {
@@ -55,7 +52,7 @@ function CategoryEditDialog({ open, onOpenChange, category }: CategoryEditDialog
     }
   }, [category, reset]);
 
-  const onSubmit = (values: FormValues) => {
+  const onSubmit = (values: UpdateCategoryInput) => {
     if (!category) return;
     const body: UpdateCategoryInput = {
       name: values.name,

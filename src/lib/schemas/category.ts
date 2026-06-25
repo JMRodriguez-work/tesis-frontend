@@ -11,6 +11,7 @@ export const createCategorySchema = z.object({
 });
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
+export type CreateCategoryFormValues = z.input<typeof createCategorySchema>;
 
 export const updateCategorySchema = z.object({
   name: z.string().trim().min(1, 'Requerido').max(255).optional(),
@@ -19,3 +20,4 @@ export const updateCategorySchema = z.object({
 });
 
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
+export type UpdateCategoryFormValues = z.input<typeof updateCategorySchema>;
