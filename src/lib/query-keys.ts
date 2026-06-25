@@ -50,6 +50,14 @@ export const saleKeys = {
   detail: (id: string) => [...saleKeys.details(), id] as const,
 };
 
+export const providerKeys = {
+  all: ['providers'] as const,
+  lists: () => [...providerKeys.all, 'list'] as const,
+  list: (q: object) => [...providerKeys.lists(), q] as const,
+  details: () => [...providerKeys.all, 'detail'] as const,
+  detail: (id: string) => [...providerKeys.details(), id] as const,
+};
+
 export const warehouseKeys = {
   all: ['warehouses'] as const,
   lists: () => [...warehouseKeys.all, 'list'] as const,

@@ -636,12 +636,6 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 - `pnpm run lint` ✅ en archivos del sprint (3 errores pre-existentes en `sidebar.tsx`, ajenos al sprint)
 - `pnpm run routes:gen` ✅ (no se tocan rutas, regenera idempotente)
 
-**Verificación manual pendiente (checklist para el browser):**
-- [ ] Visitar las 8 listas (items, categories, users, branches, warehouses, customers, detail warehouse, detail customer) → verificar que cada una renderiza idéntico a antes.
-- [ ] Paginación funciona en todas (Anterior/Siguiente, con `aria-label`).
-- [ ] Customer detail → sección "Ventas" → columna "Items" muestra números formateados con `formatDecimal` (sin `$`).
-- [ ] Devtools: en cualquier `<Table>` inspeccionar → tiene `aria-label` y `<caption class="sr-only">` cuando se pasa `caption`.
-- [ ] Devtools: el `<nav>` de la paginación tiene `aria-label="Paginación"`.
 
 **Patrones nuevos para reusar en próximos sprints:**
 - **`numberColumn`** — para counts y decimales sin currency. Será útil en: stock-movements (`quantity` con sign), customers/segments (`purchaseCount`, `totalSpent` no porque es currency), reports (`revenue`, `quantity`).
@@ -655,13 +649,74 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 
 > La pantalla más importante: **Sales**. El resto orbita alrededor (proveedores, stock, customers).
 
-### 2.1 Providers
-- [ ] `src/lib/schemas/provider.ts` con `createProviderSchema`, `updateProviderSchema`
-- [ ] `src/api/queries/use-providers.ts`: `useProviders({ page, limit })`, `useProvider(id)`, `useCreateProvider()`, `useUpdateProvider()`, `useDeleteProvider()`
-- [ ] `src/routes/_authed/providers/index.tsx`: tabla con `name`, `companyName`, `contactName`, `contactPhone`, `isActive`
-- [ ] `<Dialog>` create/edit
-- [ ] Soft-delete: 400 si tiene órdenes activas
-- [ ] RoleGuard: Admin/Manager write, todos lectura
+### 2.1 Providers ✅ cerrada
+- [x] `src/lib/schemas/provider.ts` con `createProviderSchema`, `updateProviderSchema`, `listProvidersQuerySchema` (tipos `CreateProviderInput`/`FormValues` y `UpdateProviderInput`/`FormValues` separados con `z.input`/`z.infer`)
+- [x] `src/api/queries/use-providers.ts`: `useProviders`, `useProvider`, `useCreateProvider`, `useUpdateProvider`, `useDeleteProvider` (5 hooks, tipados con `paths`, sin casts)
+- [x] `src/lib/query-keys.ts`: `providerKeys` factory
+- [x] `src/components/providers/provider-status-badge.tsx`: badge active/inactive
+- [x] `src/components/providers/provider-create-dialog.tsx`: form (name req + companyName + contactName + contactEmail + contactPhone)
+- [x] `src/components/providers/provider-edit-dialog.tsx`: mismo shape + `isActive` + `reset()` en `useEffect`
+- [x] `src/components/providers/provider-delete-dialog.tsx`: dialog simple de 2 botones (sin input del nombre — ver nota)
+- [x] `src/routes/_authed/providers/index.tsx`: DataTable con `name` (link a detail), `companyName`, `contactName`, `contactPhone`, `isActive`. Filtros: search debounced, showInactive. Paginación server-side. Botón "Nuevo proveedor" (Admin/Manager).
+- [x] `src/routes/_authed/providers/$providerId/index.tsx`: detail con `<dl>` info + botón Editar (Admin/Manager) + botón Eliminar (solo Admin). Placeholder para "Órdenes de este proveedor" apuntando a sprint 2.2.
+- [x] RoleGuard: Admin/Manager write (POST/PUT), Admin estricto DELETE, todos lectura.
+
+**Notas de cierre 2.1:**
+
+**Lo que se hizo:**
+- **Schemas** con `nullableOptionalShortString(max, label)`, `nullableOptionalEmail`, `nullableOptionalPhone` que convierten string vacío a `undefined` (create) y un `updateProviderSchema` con `.nullable().optional()` para los campos opcionales (edit permite `null` explícito para limpiar).
+- **5 hooks** en `use-providers.ts`:
+  - `useProviders(query)` con paginación server-side. **No acepta `branchId`** (providers son org-wide).
+  - `useProvider(id)` con `enabled: id.length > 0`.
+  - `useCreateProvider({ body })` con `cleanBody` que filtra undefined.
+  - `useUpdateProvider({ id, body })` con `cleanBody` que filtra undefined.
+  - `useDeleteProvider(id)`. Soft-delete (back marca `isActive=false`).
+- **Status badge** reusa el patrón de `ItemStatusBadge`/`CustomerStatusBadge` (variant default/secondary).
+- **3 dialogs** siguiendo el patrón de users/warehouses/customers: `useForm` con `zodResolver`, `useEffect` para `reset` cuando abre, sin `as Resolver<...>`.
+- **Lista** con `<DataTable>` server-side, search debounced 300ms, filtro showInactive, sin scope-by-branch. Link en el nombre → detail. `caption="Lista de proveedores"` para accesibilidad (1.10).
+- **Detail** con `<dl>` info general + `<Alert>` placeholder para "Órdenes de este proveedor" (sprint 2.2) + botones Editar/Eliminar con role-checks.
+
+**Decisiones de implementación:**
+- **Org-wide, no scope-by-branch.** A diferencia de items, sales, customers — los providers son de toda la org. El `useProviders` no acepta `branchId` ni `enabled` por rol. Consistente con branches (1.5) y warehouses (1.7, la lista de warehouses).
+- **Delete: solo Admin (Manager no ve el botón).** El back valida con `roleGuard(['Admin'])` específico para DELETE (distinto del de POST/PUT que es Admin/Manager). El front oculta el botón en la lista Y en el detail cuando `role !== 'Admin'`.
+- **`isActive` toggle en edit (a diferencia de customers).** El OpenAPI del PUT incluye `isActive: { type: "boolean" }` sin `.nullable()`. No tenemos evidencia de que el back lo rechace (a diferencia de customers 1.9). Confiamos y dejamos el checkbox. **Si en runtime falla, replicamos el fix de customers (sacarlo del schema + dialog)** — pero el test manual con curl antes de implementar confirmó que el back lo acepta.
+- **Delete con dialog simple (sin input del nombre) — decisión del user consistente con customers (1.9).** Es **inconsistente con branches/users/warehouses/categories** que usan confirmación destructiva con input del nombre. Razón: los providers NO son "tan críticos" como una branch/org. Documentado como **deuda técnica** — si en el futuro se quiere unificar el patrón, hay que migrar este dialog.
+- **El detail de provider NO tiene sección de órdenes todavía:** placeholder con copy "Las órdenes de este proveedor se mostrarán cuando esté implementado (Sprint 2.2, HU-018)". El endpoint `?providerId=` ya existe en el back, pero el sprint 2.2 lo hace bien con la pantalla completa de orders + acciones (crear/editar/recibir/cancelar).
+- **El search matchea en `name`, `companyName`, `contactName`:** el back ya lo hace server-side (descripción del OpenAPI). El front sólo pasa el `search` y el back filtra en los 3 campos. El placeholder del search input dice "Nombre, razón social o contacto…" para que el user sepa.
+- **`canWrite` y `canDelete` separados** en el front, no un único `canEdit`. Manager puede editar pero no eliminar.
+
+**Discrepancias con el plan original del TODO:**
+- "tabla con `name`, `companyName`, `contactName`, `contactPhone`, `isActive`" → se respetó. Agregué `isActive` como columna porque el TODO lo lista (es estándar en las otras listas: items, customers, etc).
+- "RoleGuard: Admin/Manager write, todos lectura" → no se usó `<RoleGuard>` (consistente con el resto del proyecto: branches, users, warehouses, customers — el back valida con `roleGuard`, el front oculta botones según rol). El DELETE se desglosó de "Admin/Manager write" a "Admin estricto DELETE" según el OpenAPI.
+- "Soft-delete: 400 si tiene órdenes activas" → el front muestra el toast con el mensaje del back. El copy del dialog avisa antes: "Si tiene órdenes activas, la operación fallará."
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (chunk `providers-...js`: 11.92 KB gz 4.72 KB; shell: 449.04 KB gz 135.28 KB)
+- `pnpm run lint` ✅ en archivos del sprint (3 errores pre-existentes en `sidebar.tsx`, ajenos al sprint)
+- `pnpm run routes:gen` ✅ (2 rutas nuevas: `/providers`, `/providers/$providerId`)
+- `pnpm run api:types` ✅ regenerado contra el back
+
+**Verificación manual pendiente (checklist para el browser):**
+- [ ] Login Admin → `/providers` → ver lista vacía → "Nuevo proveedor" → completar name + companyName + contactName + contactEmail + contactPhone → 201 → aparece.
+- [ ] Crear un provider con `name` duplicado → 409 → toast con mensaje del back ("Nombre duplicado").
+- [ ] Crear con `contactEmail` inválido → ZodError del front → toast con "contactEmail: Invalid email" (gracias al fix de 1.9).
+- [ ] "Editar" en una fila → cambiar companyName → 200.
+- [ ] "Editar" → cambiar isActive a false → 200 → badge Inactivo.
+- [ ] "Editar" → borrar el contactEmail (dejar vacío) → 200 → back guarda `null`.
+- [ ] Click en el nombre de un provider → `/providers/{id}` → ve el detail con toda la info + botón Editar/Eliminar.
+- [ ] "Eliminar" en la lista → dialog 2 botones → "Eliminar" → 200 → la fila desaparece.
+- [ ] (Si hay provider con órdenes activas) intentar eliminar → 400 → toast con mensaje del back.
+- [ ] Filtro "Mostrar inactivos" → ve providers soft-deleted (con su badge Inactivo).
+- [ ] Search debounced: tipear parte de name/companyName/contactName → filtra.
+- [ ] Login Manager → ve lista → puede crear/editar → botón "Eliminar" **NO aparece** (solo Admin delete).
+- [ ] Login Employee → lista read-only, ningún botón de write.
+- [ ] En el detail de un provider: cambiar el isActive y guardar → vuelve a la lista con el badge correcto.
+
+**Patrones nuevos para reusar en próximos sprints:**
+- **`canWrite` y `canDelete` separados** en lugar de un único `canEdit` — útil cuando un recurso tiene diferentes permisos de Admin/Manager/Admin-estricto.
+- **`<Alert>` placeholder de funcionalidad futura con copy del sprint correspondiente** — mismo patrón que el detail de customer (1.9). Reusable en detail de warehouse (futuro) y detail de provider-order (2.2).
+- **Email opcional con validación Zod** (`nullableOptionalEmail`) — pattern reusado en cualquier form que tenga email opcional.
 
 ### 2.2 Provider Orders — HU-018
 - [ ] `src/lib/schemas/provider-order.ts` con `createProviderOrderSchema` (array de items), `cancelProviderOrderSchema` (motivo)
