@@ -857,22 +857,82 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 - **ComboboxField con 2 valores hardcoded** ("Entrada" / "Salida") para enums pequeños del back sin necesidad de un endpoint de catálogo. Patrón más simple que crear un `useAdjustmentDirections`.
 - **Link "Ver todos" desde el detail** apuntando a la lista con el filtro pre-aplicado (`/stock-movements?itemId=...`). Patrón cross-page.
 
-### 2.4 Sales — HU-009, HU-010, HU-011, HU-012, HU-013, HU-014 (LA PANTALLA PRINCIPAL)
-- [ ] `src/lib/schemas/sale.ts` con `createSaleSchema` (customerId opcional, branchId, items: [{ itemId, quantity, unitId?, price, warehouseId? }], discountPercent)
-- [ ] `src/api/queries/use-sales.ts`: `useSales({ page, limit, branchId, customerId, from, to, includeCancelled })`, `useSale(id)`, `useCreateSale()`, `useCancelSale()`, `useExportSales({ format, from, to, branchId })`
-- [ ] `src/routes/_authed/sales/index.tsx`: tabla con `createdAt`, `branch`, `customer` (o "Consumidor final"), `total`, `discountPercent`, `status` (active/cancelled badge), acciones
-- [ ] `src/routes/_authed/sales/new.tsx`: **POS-style form**:
-  - Selector de customer (Combobox, opcional)
-  - Lista editable de items: combobox para item (búsqueda por nombre/code/barcode), qty, unit, price (prefill desde item.salePrice, editable), warehouse (auto o manual)
-  - Subtotal calculado en tiempo real
-  - Discount input (0-100%)
-  - Total calculado
-  - Submit: `useCreateSale.mutate(...)` → toast success con id → redirect a detail
-  - Loading: `<Skeleton>` mientras `useCreateSale.isPending` o `useLookupItemByBarcode` para autocompletar
-- [ ] `src/routes/_authed/sales/$saleId/index.tsx`: detail con `items[]` (item + warehouse), `customer{}`, `branch{}`, `createdBy{id, name, email}`, `subtotal`, `total`, `status`
-- [ ] Cancelar venta (HU-011): `<Dialog>` con input `cancellationReason` (requerido), soft-delete con movimientos compensatorios
-- [ ] Export CSV/JSON (HU-014): botón en lista que dispara download vía `useExportSales`
-- [ ] RoleGuard: Admin/Manager/Employee para POST. Admin/Manager para DELETE (cancel). Admin/Manager para export. Todos lectura.
+### 2.4 Sales — HU-009, HU-010, HU-011, HU-012, HU-013, HU-014 (LA PANTALLA PRINCIPAL) ✅ cerrada
+- [x] `src/lib/schemas/sale.ts` con `createSaleSchema` (items array, customerId opcional, discountPercent opcional 0-100, notes opcional), `cancelSaleSchema` (cancellationReason 3-500 chars), `listSalesQuerySchema` + tipos separados input/output
+- [x] `src/api/queries/use-sales.ts`: 5 hooks (`useSales`, `useSale`, `useCreateSale`, `useCancelSale`, `useExportSales`) tipados con `paths`
+- [x] `src/components/sales/sale-status-badge.tsx`: badge 2 variants (active=default, cancelled=destructive)
+- [x] `src/components/sales/sale-items-table.tsx`: tabla editable con `useFieldArray` + `Controller` (item, qty, price, unit, warehouse, subtotal). Subtotal y total derivados con `useWatch` (sin useEffect). Sub-componente `ItemCombobox` prellena `price` desde `item.salePrice` con `useRef` guard + `useEffect` (AGENTS §2.1.2 — external sync entre query data y RHF state).
+- [x] `src/components/sales/sale-cancel-dialog.tsx`: `<Dialog>` con Textarea `cancellationReason` (3-500 chars, required, Zod validated)
+- [x] `src/components/sales/sale-export-menu.tsx`: `<DropdownMenu>` con 2 items (CSV / JSON)
+- [x] `src/routes/_authed/sales/index.tsx`: DataTable con `createdAt, branchName, customerName (o "Consumidor final"), itemCount, total, discountPercent, status badge, acciones`. Filtro `includeCancelled` (ComboboxField: "Solo activas" / "Todas"). Paginación server-side. Botones: "Exportar" (Admin/Manager) + "Nueva venta" (todos). Scope-by-branch.
+- [x] `src/routes/_authed/sales/new.tsx`: POS-style form. Customer ComboboxField ("Consumidor final" por default). Tabla editable de items con prefill de price. DiscountPercent input (0-100 con 2 decimales). Subtotal + descuento + total calculados en tiempo real. Botón "Escanear" placeholder. Submit → `useCreateSale.mutate` → toast → redirect a detail.
+- [x] `src/routes/_authed/sales/$saleId/index.tsx`: detail con info general (branch, customer, createdBy, fecha, notas), tabla de items con links a item/warehouse, totales (subtotal + descuento + total), status badge, `<Alert>` diferenciado para active/cancelled, botón "Cancelar venta" (Admin/Manager) → `SaleCancelDialog`.
+- [x] **Helper `percentColumn`** agregado a `column-defs.tsx` (formato "10%"). 9 helpers en total.
+- [x] **Export** con `useExportSales` (5° hook): usa `fetch` directo (no `api.GET`) porque el response no es JSON estándar. `URL.createObjectURL` + `<a download>` para triggear download. `mapApiError` en `onError`.
+- [x] **Cancelar venta** con invalidaciones cross-cutting: `saleKeys.lists()` + `saleKeys.detail(id)` + per-item `itemKeys.stock(itemId)` + `stockKeys.byWarehouse(warehouseId, {})` + `stockMovementKeys.lists()` + `stockMovementKeys.lowStock` + `customerKeys.detail` si hay customer. Mismo patrón que `useReceiveProviderOrder` (2.2).
+- [x] **RoleGuard**: Admin/Manager para cancelar y exportar; todos para crear; todos lectura. Front oculta botones según rol. Back valida con `roleGuard`.
+
+**Notas de cierre 2.4:**
+
+**Lo que se hizo:**
+- **Schemas** con regex `^\d+(\.\d{1,3})?$` para quantity/price decimal string. `discountPercent` validado con refine custom: regex + rango 0-100. `customerId` y `notes` siguen el patrón `optional().or(literal('').transform(() => undefined))` (consistente con customers 1.9 y providers 2.1).
+- **5 hooks** en `use-sales.ts`:
+  - `useSales(query, options?)` con scope-by-branch + `includeCancelled` (nullable). `as never` cast (mismo patrón que 1.8/1.9/2.2/2.3).
+  - `useSale(id)` con `enabled: id.length > 0`.
+  - `useCreateSale({ body, branchId })` con `cleanItems` que filtra `unitId` undefined. Body incluye `customerId`, `discountPercent`, `notes` solo si están definidos. Invalidaciones cross-cutting masivas: `saleKeys.lists()`, per-item `itemKeys.stock + stockKeys.byWarehouse`, `stockMovementKeys.lists() + lowStock`, `customerKeys.detail` si hay customer.
+  - `useCancelSale({ id, body })` con `cancellationReason` validado por Zod. Devuelve `data.data.sale` (estructura del back: `{sale, alreadyCancelled}`). Mismas invalidaciones que create.
+  - `useExportSales({ format, branchId, from, to })` que devuelve `void`: usa `fetch` directo (no `api.GET`) porque la response no es JSON estándar. `URL.createObjectURL` + `<a download>` para triggear download. `onError` propaga via `mapApiError` después de parsear el body como JSON.
+- **`<SaleStatusBadge>`** con 2 variants (active=default, cancelled=destructive).
+- **`<SaleItemsTable>`**: la pieza más compleja del sprint. Usa `useFieldArray` para add/remove de filas; `Controller` para los 3 ComboboxField (item, unit, warehouse). Subtotal y total derivados con `useWatch` (sin useEffect — AGENTS §2.1.2). Footer con Subtotal/Descuento/Total.
+- **`<SaleItemsTable>` prefill**: sub-componente `ItemCombobox` recibe `itemsData` (catálogo) y prellena `price` con `item.salePrice` cuando el user selecciona un item. `useRef` guard evita re-prefill si el mismo item se mantiene seleccionado entre renders. `useEffect` justificado por external sync entre query data y RHF state.
+- **`<SaleCancelDialog>`** con Textarea validado por Zod (3-500 chars, required). Reset al abrir. `mapApiError` propaga el mensaje del back (ej. "Venta ya cancelada" si idempotente).
+- **`<SaleExportMenu>`** con `<DropdownMenu>` (2 items: CSV, JSON). Filename: `ventas-YYYY-MM-DD.csv|json`. Pasa `branchId` si Admin tiene branch activa.
+- **Lista de sales** con `<DataTable>` + filtro `includeCancelled` (ComboboxField "Solo activas" / "Todas"). Columna Cliente muestra "Consumidor final" si `customerId` es null. Helper nuevo `percentColumn` para formatear el descuento como "10%".
+- **POS-style form** (new.tsx): customer opcional, tabla editable, discountPercent (0-100), notes opcionales, footer con subtotal/descuento/total, `<Alert>` informativo, botón "Escanear" placeholder.
+- **Detail de sale** con 3 secciones: info general (branch, customer o "Consumidor final", createdBy, fecha, notas), totales (subtotal + descuento + total), tabla de items con links. `<Alert>` diferenciado según status: "Activa" verde o "Cancelada" destructive con motivo y fecha de baja.
+
+**Decisiones de implementación:**
+- **`branchId` en el body es OPCIONAL** (a diferencia de adjustment/transfer 2.3 que lo exigen). El back fuerza branch del user para Manager/Employee, Admin puede omitirlo y se le asigna el del store. La page infiere `branchId = adminBranchId ?? me.branchId ?? ''` y lo pasa al hook.
+- **No se crea `edit.tsx` de sale**. El back no expone PUT/PATCH. Las ventas son inmutables excepto por cancelación.
+- **No hay `<RoleGuard>`** en la ruta. Mismo patrón que todo el proyecto: front oculta botones según rol, back valida con `roleGuard`.
+- **No se linkea el `customerName` de las cancelaciones** ni se permite ver el `cancellationReason` desde otra página. Solo visible en el detail de la venta.
+- **El price prefill se hace en el form, no en el back.** El back NO tiene un endpoint para "obtener el price sugerido de un item en contexto de venta". El front lo hace vía `useItems({ isActive: true, limit: 100 })` y lookup local.
+- **`useExportSales` usa `fetch` directo (no `api.GET`)** porque el OpenAPI tipa la response con `content?: never` (no es JSON estándar, es un file). No se puede usar `paths['/api/v1/sales/export']` sin que openapi-fetch se queje. Helper en `src/api/client.ts`: `export const BASE_URL`.
+- **El `useEffect` con prefill de price** es exactamente el caso "external sync" que AGENTS §2.1.2 acepta: sincroniza TanStack Query data con RHF state. El `useRef` guard evita loops. Sin él, el price se sobreescribiría en cada render.
+- **El helper `ItemCombobox` está dentro de `SaleItemsTable`** (mismo archivo, no componente separado). Razón: solo se usa acá, es muy específico al flow de sales. Si en el futuro provider-orders también prellena price, se puede extraer.
+
+**Discrepancias con el plan original del TODO:**
+- "tabla con `createdAt`, `branch`, `customer`, `total`, `discountPercent`, `status`, acciones" → se respetó. Agregué `itemCount` (es útil para análisis rápido).
+- "POS-style form con Selector de customer + items editables + discount + total" → se respetó. Agregué notas opcionales y un `<Alert>` informativo.
+- "Cancelar venta: `<Dialog>` con input `cancellationReason` (requerido)" → se respetó. Textarea en vez de Input (más espacio para 3-500 chars).
+- "Export CSV/JSON" → respetado. DropdownMenu con 2 items (decidido en planning). Filename: `ventas-YYYY-MM-DD.{csv,json}`.
+- "RoleGuard: Admin/Manager/Employee para POST. Admin/Manager para DELETE (cancel). Admin/Manager para export. Todos lectura." → respetado (front oculta botones según rol, sin `<RoleGuard>`).
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (chunks: `sales` lista 17 KB gz 6 KB; `_saleId` detail; `new`; bundle del shell: ~455 KB gz ~137 KB — solo +1 KB gz sobre 2.3)
+- `pnpm run lint` ✅ (1 info preexistente de Biome 2.5)
+- `pnpm run routes:gen` ✅ (3 rutas nuevas: `/sales`, `/sales/new`, `/sales/$saleId`)
+- E2E smoke: dev server responde 200 en las 3 rutas
+
+**Verificación manual pendiente (checklist para el browser):**
+- [ ] Login Admin → `/sales` → ver tabla (probablemente vacía al inicio).
+- [ ] "Nueva venta" → seleccionar 1-2 items con qty, price (prefill), warehouse por item, customer opcional → submit → toast → detail.
+- [ ] Detail → info, items, totales, status "Activa". Botón "Cancelar" visible.
+- [ ] "Cancelar" → modal pide motivo (3-500) → submit → status "Cancelada" + motivo visible en `<Alert>` destructive.
+- [ ] **Invalidaciones post-cancelación**: ir a `/items/$id` → stock volvió al valor pre-venta. Ir a `/stock-movements` → nuevo row con `referenceType='sale'`.
+- [ ] Login Employee → ve la lista, ve "Nueva venta", NO ve "Cancelar" ni "Exportar".
+- [ ] Login Manager → ve los 3 botones.
+- [ ] "Exportar" → "CSV" → file `ventas-YYYY-MM-DD.csv` se descarga. Repetir JSON.
+- [ ] Filtro "Todas" → aparecen las canceladas con badge "Cancelada".
+- [ ] **Errores**: qty `1000` y stock `2` → 400 con mensaje del back. Item vacío → 400. Motivo vacío → 400. Discount `150` → 400.
+- [ ] Scanner: click "Escanear" → toast "Scanner no disponible en MVP".
+
+**Patrones nuevos para reusar en próximos sprints:**
+- **`useEffect` con `useRef` guard para prefill de form fields desde query data** (`SaleItemsTable`): evita loops de re-render, permite sync one-shot entre TanStack Query y RHF. Aplicable a cualquier form donde un campo dependa de otro (ej. seleccionar un item → prellenar precio, código, descripción).
+- **`useExportSales` con `fetch` directo + `URL.createObjectURL`**: el patrón para endpoints que devuelven files (no JSON). Reusable en `useExportCustomers`, `useExportItems`, `useExportStockMovements` cuando se agreguen.
+- **`percentColumn`** helper: formatea `string | number` como "10%". Reusable en cualquier vista que muestre porcentajes (discountPercent, tax, etc).
+- **`fetch` directo para escapar el tipado de `paths`**: cuando el OpenAPI declara `content?: never` (file downloads), no se puede usar `api.GET`. Patrón: helper `BASE_URL` + `fetch` + `URL.createObjectURL`. El error handling parsea el body como JSON para mantener consistencia con `mapApiError`.
 
 ### 2.5 Stock crítico — HU-017 (front)
 - [ ] `src/api/queries/use-recommendations.ts`: `useRecommendations({ page, limit, status, type, branchId })`, `useRecommendation(id)`, `useUpdateRecommendationStatus()`
@@ -1031,7 +1091,7 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 |------|---------------------|----------------|--------|
 | Fase 0 — Fundación | Setup, auth, infra | 100% | ✅ cerrada (0.1, 0.2, 0.3, 0.4) |
 | Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 7/10 sub-secciones (branch context, items, categories, units, branches, users, org) | ⏳ en progreso |
-| Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 2/10 sub-secciones (provider-orders, stock-movements) | ⏳ en progreso |
+| Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 3/10 sub-secciones (provider-orders, stock-movements, sales) | ⏳ en progreso |
 | Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 0% | ⏳ pendiente |
 | Fase 4 — Pulido | Polish + a11y + perf + role security | 0% | ⏳ pendiente |
 | Fase 5 — Deploy | Pages + CORS prod | 0% | ⏳ pendiente |

@@ -72,6 +72,25 @@ function numberColumn<T>(header: string, accessor: keyof T, fallback = '—'): C
   };
 }
 
+function percentColumn<T>(
+  header: string,
+  accessor: keyof T,
+  fallback = '—',
+): ColumnDef<T, unknown> {
+  return {
+    id: `percent-${String(accessor)}`,
+    header,
+    accessorFn: (row) => row[accessor],
+    cell: ({ getValue }) => {
+      const value = getValue();
+      if (value === null || value === undefined || value === '') return fallback;
+      const n = Number(value);
+      if (Number.isNaN(n)) return fallback;
+      return `${n}%`;
+    },
+  };
+}
+
 type BooleanColumnOptions = {
   trueLabel?: string;
   falseLabel?: string;
@@ -148,5 +167,6 @@ export {
   dateColumn,
   iconColumn,
   numberColumn,
+  percentColumn,
   textColumn,
 };
