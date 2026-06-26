@@ -143,3 +143,11 @@ export const customerAnalyticsKeys = {
   all: ['customer-analytics'] as const,
   detectInactive: () => [...customerAnalyticsKeys.all, 'detect-inactive'] as const,
 };
+
+export const externalDataKeys = {
+  all: ['external-data'] as const,
+  lists: () => [...externalDataKeys.all, 'list'] as const,
+  list: (q: object) => [...externalDataKeys.lists(), q] as const,
+  details: () => [...externalDataKeys.all, 'detail'] as const,
+  detail: (id: string) => [...externalDataKeys.details(), id] as const,
+};

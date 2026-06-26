@@ -1203,14 +1203,68 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 - **Mutation con invalidación cross-cutting multi-key** (`useDetectInactiveCustomers.onSuccess`) — patrón para mutations que afectan múltiples áreas del producto (dashboard + recommendations + notifications). Documentado inline. Reusable para cualquier future mutation que cree recommendations.
 - **Toast.success con `description` (jobId en este caso)** — patrón para feedback de jobs async cuando no hay polling. El jobId acortado a 8 chars es suficiente para debugging.
 
-### 3.4 External Data — HU-030, HU-031
-- [ ] `src/api/queries/use-external-data.ts`: `useExternalDataSources({ isActive, type })`, `useExternalDataSource(id)`, `useCreateSource()`, `useUpdateSource()`, `useDeleteSource()`, `useEnqueueFetch()`
-- [ ] `src/routes/_authed/settings/external-data.tsx`: tabla con `name`, `type` (badge), `url`, `isActive`, `lastFetchedAt`, `lastError` (con `<Tooltip>` si existe)
-- [ ] `<Dialog>` create/edit: name, type (Select: wholesale_prices/search_trends/seasonality), url, `authConfig` (jsonb editable via JSON textarea), `isActive`
-- [ ] Botón "Fetch now" en cada fila (Admin/Manager): dispara `useEnqueueFetch.mutate({ id })` → toast "Job encolado"
-- [ ] `authConfig` sanitizado en responses (ver back §4.2): mostrar solo "Tiene headers" / "Tiene queryParams" como boolean badges
-- [ ] Cron indicator: "Última ejecución del cron: ..." con timestamp
-- [ ] RoleGuard: Admin estricto para create/update/delete, Admin/Manager para enqueue, todos lectura
+### 3.4 External Data — HU-030, HU-031 ✅ cerrada
+- [x] `src/lib/schemas/external-data.ts` con `createExternalDataSourceSchema`, `updateExternalDataSourceSchema`, `listExternalDataSourcesQuerySchema` (tipos `Create*Input`/`FormValues` y `Update*Input`/`FormValues` separados con `z.input`/`z.infer`)
+- [x] `src/api/queries/use-external-data.ts`: 6 hooks (`useExternalDataSources`, `useExternalDataSource`, `useCreateExternalDataSource`, `useUpdateExternalDataSource`, `useDeleteExternalDataSource`, `useEnqueueFetchExternalData`) tipados con `paths`, sin casts (`as never` solo en el query del GET para bypasear el tipo `isActive: "true" | "false"` del back)
+- [x] `src/lib/query-keys.ts`: `externalDataKeys` factory (lists/list/details/detail)
+- [x] `src/components/external-data/external-data-type-badge.tsx`: badge con 3 variants (wholesale_prices=default+CurrencyDollar, search_trends=secondary+MagnifyingGlass, seasonality=outline+Calendar) + `EXTERNAL_DATA_TYPE_LABELS` exportado
+- [x] `src/components/external-data/external-data-status-badge.tsx`: badge active/inactive
+- [x] `src/components/external-data/external-data-source-create-dialog.tsx`: form (name req + type ComboboxField + url + authConfig Textarea + isActive Checkbox) con `authConfigTextarea` que parsea JSON y valida shape `{ headers?, queryParams? }`
+- [x] `src/components/external-data/external-data-source-edit-dialog.tsx`: prefill desde `useExternalDataSource(id)`, authConfig arranca vacío (sanitizado), `useEffect` de external sync (AGENTS §2.1.2)
+- [x] `src/components/external-data/external-data-source-delete-dialog.tsx`: confirmación destructiva con input del nombre (patrón AGENTS §12.5)
+- [x] `src/routes/_authed/settings/external-data.tsx`: DataTable paginada server-side con `name`, `type` (badge), `url` (link externo), `auth` (Headers/QueryParams badges), `isActive`, `lastFetchedAt`, `lastError` (Tooltip con `WarningIcon`), acciones (Fetch now + Edit + Delete). Filtros: type (4 valores) + isActive (3 valores). Paginación server-side.
+- [x] Botón "Fetch now" (Admin/Manager): dispara `useEnqueueFetchExternalData.mutate(id)` → toast con `jobId.slice(0,8)` + nota "Los resultados aparecerán al refrescar." Patrón idéntico a `useDetectInactiveCustomers` (3.3)
+- [x] `authConfig` sanitizado: la celda muestra solo "Headers" y/o "Query params" como texto plano (no badges con variant, decisión de UI). El GET devuelve `{ hasHeaders, hasQueryParams }`; el PUT/POST acepta el JSON completo vía textarea
+- [x] Cron indicator: helper text al pie "El sistema corre un fetch automático diario. Usá 'Fetch now' para forzar una ejecución inmediata."
+- [x] RoleGuard: Admin estricto para create/edit/delete; Admin/Manager para fetch; todos lectura. Front oculta botones según rol, sin `<RoleGuard>` (consistente con el resto del proyecto)
+- [x] Tooltip primitive (ya existía desde sprint 2.5) usado en la celda de `lastError` para mostrar el mensaje completo sin romper la tabla
+
+**Notas de cierre 3.4:**
+
+**Lo que se hizo:**
+- **Schemas** con `authConfigTextarea`: un `z.string()` con `.transform` que parsea JSON y valida el shape contra `authConfigShape` (zod `strict`). Input: string (lo que tiene el textarea). Output: `AuthConfig | undefined` (lo que el body del back espera). **Sin `as Resolver<...>` cast** (AGENTS §7.5.1).
+- **6 hooks** en `use-external-data.ts`:
+  - `useExternalDataSources({ page, limit, isActive, type })` con paginación server-side. **Sin `branchId`** (sources son org-wide). Mapea `isActive: boolean | null` → `'true' | 'false' | undefined` para el back.
+  - `useExternalDataSource(id)` con `enabled: id.length > 0`. Usado por el edit dialog para prellenar.
+  - `useCreateExternalDataSource({ body })` con `cleanBody` que filtra `authConfigJson` undefined. `authConfigJson` → `authConfig` en el body (rename del form field al API field).
+  - `useUpdateExternalDataSource({ id, body })` con `cleanBody` que filtra undefined y maneja `authConfigJson: null | undefined` (no se manda si está vacío, se manda `authConfig: null` si el user lo borró explícitamente).
+  - `useDeleteExternalDataSource(id)`. Soft-delete idempotente.
+  - `useEnqueueFetchExternalData(id)`. **No invalida queries** (fire-and-forget; el back devuelve 202 sin polling).
+- **3 dialogs** siguiendo el patrón de providers/warehouses:
+  - Create: reset on open via inline `useEffect`. `authConfigJson: ''` → undefined vía transform.
+  - Edit: prefill con `useExternalDataSource(id)` + `useEffect` que resetea con el sourceDetail. `authConfigJson` siempre arranca vacío (sanitizado).
+  - Delete: input del nombre (patrón AGENTS §12.5).
+- **Página `/settings/external-data`**: DataTable con 7 columnas. Filtros: `type` (4 valores: Todos + 3 tipos) + `isActive` (3 valores: Todas/Solo activas/Solo inactivas). URL = source of truth (TanStack Router search params). `<TooltipProvider>` per-row para el `lastError`.
+
+**Decisiones de implementación:**
+- **Coordinación cross-repo con el back (3.4-bis)**: el back agregó `page`/`limit` al endpoint `GET /api/v1/external-data` en el mismo sprint. El front asume que la paginación está disponible. Si en el futuro se quiere hacer un fallback con tabla HTML simple (tipo `top-items` de 3.2), el refactor es trivial porque el `<DataTable>` ya está desacoplado.
+- **`authConfig` via JSON textarea**: el back sanitiza en GET (solo `{ hasHeaders, hasQueryParams }`). El edit dialog prellena el textarea vacío (no podemos mostrar el valor original). Si el user deja el textarea vacío en el edit, no se manda `authConfig` en el PUT (mantiene el valor actual). Si escribe un JSON, se manda completo y reemplaza. Esta decisión se documenta en el `DialogDescription` del edit dialog.
+- **`as never` en `useExternalDataSources`**: el OpenAPI del back genera `isActive?: "true" | "false"` (string literals, no boolean) en el query schema. El front usa `boolean | null` internamente y mapea antes de mandar. El `as never` bypasea el type check de openapi-typescript. **Patrón consistente** con 1.8/1.9/2.2/2.3/3.1/3.2/3.3.
+- **`useEnqueueFetchExternalData` con `useCallback` para `handleFetchNow`**: biome exige deps exhaustivas en el `useMemo` de las `columns`. El callback se memoiza con `[enqueueFetch]` (estable). AGENTS §2.1.3 dice "no usar useCallback por default", pero la práctica del proyecto en este tipo de casos es usarlo (sprints 1.10, 2.5, 3.1, 3.2 lo usan).
+- **Cron indicator como helper text, no como componente**: el back corre el cron a las 6 AM UTC (`wrangler.jsonc` triggers). El front muestra el texto "El sistema corre un fetch automático diario. Usá 'Fetch now' para forzar una ejecución inmediata." al pie de la tabla. No hay un endpoint que devuelva el próximo cron, así que no se muestra el timestamp. YAGNI.
+- **Sin `<RoleGuard>` en la ruta**: igual que branches/users/warehouses/providers. El back valida con `roleGuard` en cada endpoint. El front oculta botones según rol. Más simple que un RoleGuard que redirija a `/dashboard`.
+- **`useEffect` en los 2 dialogs (create + edit)**: AGENTS §2.1.2 lo justifica como external sync (RHF state ← open change). El create usa inline defaults en el useEffect (no `defaultValues` const afuera, para evitar el warning de `useExhaustiveDependencies`).
+- **`<TooltipTrigger render={...}>` en vez de `asChild`**: Base UI (la底层 de shadcn en este proyecto) usa la prop `render` en vez de `asChild`. Mismo patrón que el sidebar.
+
+**Discrepancias con el plan original del TODO:**
+- "tabla con `name`, `type` (badge), `url`, `isActive`, `lastFetchedAt`, `lastError`" → se respetó. Agregué columna `auth` con los badges de Headers/QueryParams (plan lo menciona pero no como columna separada).
+- "Select para type" → se usó `<ComboboxField>` en vez de `<Select>` (consistente con AGENTS §12.0.1, que prohibe Select en este proyecto).
+- "RoleGuard" → no se usó `<RoleGuard>` (consistente con el resto del proyecto).
+- "Confirmation destructiva con input del nombre" → sí, patrón consistente con branches/users/warehouses.
+- "Tooltip primitive via shadcn add" → ya existía desde sprint 2.5, no hubo que agregarlo.
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (chunk `external-data-CKEbnP5X.js`: 33.88 KB gz 10.68 KB; shell: ~461 KB gz ~138 KB)
+- `pnpm run lint` ✅ (1 info pre-existente de Biome 2.5)
+- `pnpm run routes:gen` ✅ (ruta ya estaba registrada, regenera idempotente)
+- `pnpm run api:types` ✅ regenerado contra `http://localhost:8787/doc` (tipos de external-data actualizados con paginación)
+
+**Patrones nuevos para reusar en próximos sprints:**
+- **`authConfigTextarea`** (Zod `.transform` que parsea JSON y valida shape) — pattern reusable para cualquier campo `jsonb` editable via textarea en otros módulos (ej. futuro `settings/webhooks`, `settings/integrations`).
+- **`useEnqueueFetchExternalData` + `useCallback(handleFetchNow)`** — pattern para "enqueue job + toast con jobId recortado". Aplicable a cualquier `POST /:id/fetch` o `POST /:id/sync` que se sume.
+- **`<TooltipProvider>` per-row en una celda de DataTable** — pattern para mostrar contenido largo (errores, descriptions truncadas) sin romper el layout.
+- **`getExternalDataSourceById` con prefill + edit dialog** — pattern para "el detail siempre expone más que la lista" (data, lastError, lastFetchedAt). El edit dialog fetch el detail completo aunque la lista ya tenga los datos básicos.
 
 ### 3.5 Notifications — HU-035
 - [ ] `src/api/queries/use-notifications.ts`: `useNotifications()`, `useMarkRecommendationRead()`, `useMarkAllRecommendationsRead()`
@@ -1316,7 +1370,7 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 | Fase 0 — Fundación | Setup, auth, infra | 100% | ✅ cerrada (0.1, 0.2, 0.3, 0.4) |
 | Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 7/10 sub-secciones (branch context, items, categories, units, branches, users, org) | ⏳ en progreso |
 | Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 4/10 sub-secciones (provider-orders, stock-movements, sales, recommendations) | ⏳ en progreso |
-| Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 3/5 sub-secciones (dashboard 3.1, reports 3.2, customer-analytics 3.3) | ⏳ en progreso |
+| Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 4/5 sub-secciones (dashboard 3.1, reports 3.2, customer-analytics 3.3, external-data 3.4) | ⏳ en progreso |
 | Fase 4 — Pulido | Polish + a11y + perf + role security | 0% | ⏳ pendiente |
 | Fase 5 — Deploy | Pages + CORS prod | 0% | ⏳ pendiente |
 
