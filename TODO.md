@@ -1266,17 +1266,72 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 - **`<TooltipProvider>` per-row en una celda de DataTable** — pattern para mostrar contenido largo (errores, descriptions truncadas) sin romper el layout.
 - **`getExternalDataSourceById` con prefill + edit dialog** — pattern para "el detail siempre expone más que la lista" (data, lastError, lastFetchedAt). El edit dialog fetch el detail completo aunque la lista ya tenga los datos básicos.
 
-### 3.5 Notifications — HU-035
-- [ ] `src/api/queries/use-notifications.ts`: `useNotifications()`, `useMarkRecommendationRead()`, `useMarkAllRecommendationsRead()`
-- [ ] **Campana en topbar** (al lado del user dropdown):
-  - Icon `<BellIcon>` + badge con `unreadCount`
-  - `<Popover>` con lista: recommendations pending (top 5) + low stock items
-  - Click en item → navega a su detail
-  - "Marcar todas como leídas" en el header del popover
-- [ ] Click en item individual → llama `useMarkRecommendationRead.mutate({ id })` antes de navegar
-- [ ] Optimistic update del `unreadCount` (TanStack Query `onMutate` / `onError` rollback)
-- [ ] Polling cada 60s mientras la pestaña está visible (`refetchInterval: 60_000`)
-- [ ] RoleGuard: todos los autenticados
+### 3.5 Notifications — HU-035 ✅ cerrada
+- [x] `src/api/queries/use-notifications.ts`: 3 hooks (`useNotifications` con polling 60s, `useMarkRecommendationRead`, `useMarkAllRecommendationsRead`) tipados con `paths`
+- [x] **Campana en topbar** (`<NotificationsBell>` integrado en `<Topbar>`, sprint 2.5):
+  - Icon `<BellIcon>` + badge con `unreadCount` (99+ si excede)
+  - `<Popover>` con 2 secciones: recommendations pending (top 5) + low stock (top 5) + footer "Ver todas las recomendaciones"
+  - Click en recommendation → marca como leída + navega a `/recommendations?status=pending&openId=...`
+  - Click en low stock → navega a `/stock-movements/low-stock`
+  - "Marcar todas leídas" en el header del popover
+- [x] Optimistic update del `unreadCount` con `onMutate` (snapshot + `setQueryData`) + `onError` (rollback al snapshot) + `onSettled` (`invalidateQueries` para sync con back)
+- [x] Polling cada 60s mientras la pestaña está visible (`refetchInterval: 60_000` en `useNotifications`)
+- [x] RoleGuard: todos los autenticados (back acepta cualquier rol, el back filtra por branch)
+
+**Notas de cierre 3.5:**
+
+**Lo que YA estaba hecho (sprint 2.5, cerrado):**
+- 3 hooks en `use-notifications.ts`: `useNotifications` (con polling 60s + `staleTime: 30s`), `useMarkRecommendationRead`, `useMarkAllRecommendationsRead`. Sin casts.
+- `<NotificationsBell>` integrado en `<Topbar>` (al lado del user dropdown). Popover con 2 secciones (recommendations + low stock) + deep-link con `openId` + mark all read.
+- Back: módulo `notifications` con 3 endpoints (`GET /api/v1/notifications`, `PATCH /recommendations/{id}/read`, `PATCH /recommendations/read-all`) implementado en sprint 3.5-B.
+
+**Lo que se hizo en ESTE sprint (cierre):**
+- **Optimistic update real del `unreadCount`** (deuda técnica del sprint 2.5). La nota de cierre 2.5 afirmaba que estaba implementado, pero el código real solo hacía `qc.invalidateQueries` (refetch, no optimistic). Ahora:
+  - `useMarkRecommendationRead.onMutate`: cancela refetches en flight + snapshot del cache + decrementa `unreadCount` en 1 + remueve la recommendation de la lista.
+  - `useMarkRecommendationRead.onError`: rollback al snapshot.
+  - `useMarkRecommendationRead.onSettled`: invalida `notificationKeys.unread` + `recommendationKeys.lists` para sincronizar con el back.
+  - `useMarkAllRecommendationsRead`: misma lógica pero `unreadCount = 0` + `recommendations = []`.
+  - Patrón estándar de TanStack Query (tkdodo).
+- **Cierre del TODO 3.5** (el front decía [ ] pendiente por error histórico; el código de la campana estaba hecho en 2.5).
+
+**Decisiones de implementación:**
+- **Patrón optimistic con `onMutate` + `onError` + `onSettled`** (en vez de `onSuccess`): `onSettled` corre en ambos casos (success y error), así que el invalidate siempre se ejecuta. El `onError` rollbackea ANTES de que `onSettled` invalide. Patrón estándar de tkdodo.
+- **`qc.cancelQueries` ANTES de `setQueryData`**: si hay un refetch en flight (del polling 60s), abortarlo para que no pise el optimistic update con data stale. Sin esto, el polling puede llegar DESPUÉS de `setQueryData` y sobrescribir el optimistic update.
+- **`Math.max(0, previous.unreadCount - 1)`**: defensa contra underflow si el cache está desincronizado (ej. otro device ya marcó como leída).
+- **Para `markAll`, query key correcta con `branchId`**: el `onMutate` lee/escribe la key con el `branchId` del input (`notificationKeys.unread({ branchId })`), no la key sin branchId. El `onSettled` invalida con `{}` para refrescar todas las keys.
+- **`onSettled` invalida ambas keys** (`notificationKeys.unread` + `recommendationKeys.lists`): la lista de recommendations también cambia (las marcadas como leídas ya no aparecen como unread), así que ambas necesitan refetch.
+- **El toast de error lo maneja el caller** (notifications-bell.tsx en `onError` del mutate). El hook propaga el error via throw, el componente lo atrapa y muestra el toast via `mapApiError`.
+- **Sin tocar la UI**: el optimistic update se refleja automáticamente en `<NotificationsBell>` (que consume el cache via `useNotifications`). El badge del BellIcon baja de 1 en 1, las recommendations desaparecen de la lista, todo sin recargar.
+- **`onMutate: async (variables) => { const branchId = variables?.branchId; ... }`**: TypeScript no acepta destructuring con default `= {}` en `onMutate` cuando el hook es inferido (el tipo de `TVariables` no se puede instanciar con `{}` arbitrario). El workaround es leer `variables` directamente y aplicar el optional chaining. Mismo patrón se aplicó a `onSettled`.
+
+**Discrepancias con el plan original del TODO:**
+- "Optimistic update del `unreadCount` (TanStack Query `onMutate` / `onError` rollback)" → era un item del TODO 3.5 marcado como [ ] pero en realidad NUNCA estuvo implementado (la nota de cierre 2.5 lo afirmaba incorrectamente). Este sprint cierra la deuda técnica.
+- "RoleGuard" → no se usa `<RoleGuard>`. El back filtra por branch + cualquier rol autenticado puede ver. Consistente con el resto del proyecto.
+
+**Verificación:**
+- `pnpm run type-check` ✅
+- `pnpm run build` ✅ (el bundle del chunk notifications-bell no cambia significativamente — el código agregado es liviano)
+- `pnpm run lint` ✅ (1 info pre-existente de Biome 2.5)
+- `pnpm run routes:gen` ✅ (no se tocan rutas, regenera idempotente)
+- E2E manual:
+  - Login → campana visible en topbar.
+  - Si hay recommendations pending → badge con count.
+  - Click en una recommendation en la campana → **count baja INMEDIATAMENTE (optimistic)** + navega a `/recommendations?status=pending&openId=...` + Dialog del detail abierto. Si el back falla (simular cortando la red), el count vuelve al valor anterior (rollback) + toast de error.
+  - Click en "Marcar todas leídas" → count baja a 0 INMEDIATAMENTE + lista de recommendations se vacía del Popover.
+  - Esperar 60s sin recargar → el polling refresca la campana (el count debería seguir en 0).
+  - Login Employee → ve la campana (no `<RoleGuard>`).
+  - Optimistic update NO se rompe con polling simultáneo (verificado manualmente: el polling puede llegar a la vez que el optimistic, `cancelQueries` lo maneja).
+
+**Patrones nuevos para reusar en próximos sprints:**
+- **Optimistic update con `onMutate` + `onError` + `onSettled`** (patrón tkdodo). Aplicable a cualquier mutation que quiera feedback instantáneo (mark-read, like, favorite, etc). La regla: SIEMPRE `cancelQueries` ANTES de `setQueryData`, SIEMPRE retornar snapshot para rollback.
+- **Toast de error en el caller, no en el hook**: el hook propaga el error, el componente lo muestra. Permite que distintos call sites tengan distintos mensajes de error (ej. "No se pudo marcar como leída" vs "No se pudo aplicar la recommendation").
+- **`Math.max(0, count - 1)` en optimistic decrement**: defensa contra underflow. Patrón para cualquier counter que se decrementa optimísticamente.
+
+**Lo que NO se hizo en 3.5 (queda fuera de scope):**
+- **Página `/notifications` completa** (lista paginada histórica, filtros read/unread/type): el top 5 de la campana es suficiente para MVP. Si en el futuro se quiere, se puede agregar como una vista más.
+- **HU-003 (`handleSendEmail`)**: el handler del back sigue siendo un placeholder que solo loggea. No se invoca desde ningún lado. Scope mínimo, no emails en MVP. AGENTS §17 del front lo confirma: "Push notifications del browser → NO en MVP".
+- **Backfill de `read_at` para recommendations ya aplicadas/dismissed**: queda como tarea de mantenimiento si el Admin quiere ver el histórico.
+- **Webhooks/push notifications** (AGENTS §13 del back): fuera de scope MVP.
 
 ---
 
@@ -1370,7 +1425,7 @@ El `mapApiError` original buscaba solo `{ message: string }` en el top-level y c
 | Fase 0 — Fundación | Setup, auth, infra | 100% | ✅ cerrada (0.1, 0.2, 0.3, 0.4) |
 | Fase 1 — Entidades maestras | HU-004, 005, 006, 007, 008, 015, 016, 020, 021, 022 | 7/10 sub-secciones (branch context, items, categories, units, branches, users, org) | ⏳ en progreso |
 | Fase 2 — Transacciones core | HU-009, 010, 011, 012, 013, 014, 017, 018, 019, 023, 024 | 4/10 sub-secciones (provider-orders, stock-movements, sales, recommendations) | ⏳ en progreso |
-| Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 4/5 sub-secciones (dashboard 3.1, reports 3.2, customer-analytics 3.3, external-data 3.4) | ⏳ en progreso |
+| Fase 3 — Inteligencia analítica | HU-025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035 | 5/5 sub-secciones (dashboard 3.1, reports 3.2, customer-analytics 3.3, external-data 3.4, notifications 3.5) | ✅ cerrada |
 | Fase 4 — Pulido | Polish + a11y + perf + role security | 0% | ⏳ pendiente |
 | Fase 5 — Deploy | Pages + CORS prod | 0% | ⏳ pendiente |
 
