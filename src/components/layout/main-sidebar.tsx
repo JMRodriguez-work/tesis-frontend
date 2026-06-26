@@ -1,6 +1,5 @@
 import {
   ArrowsLeftRightIcon,
-  BellIcon,
   BellRingingIcon,
   ChartBarIcon,
   ChartLineUpIcon,
@@ -12,8 +11,8 @@ import {
   TruckIcon,
   UsersIcon,
   WarehouseIcon,
-} from '@phosphor-icons/react';
-import { Link, useRouterState } from '@tanstack/react-router';
+} from "@phosphor-icons/react";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Sidebar,
   SidebarContent,
@@ -28,9 +27,9 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarRail,
-} from '@/components/ui/sidebar';
-import { canSeeLink, type NavLinkKey } from '@/lib/permissions';
-import type { UserRole } from '@/lib/role';
+} from "@/components/ui/sidebar";
+import { canSeeLink, type NavLinkKey } from "@/lib/permissions";
+import type { UserRole } from "@/lib/role";
 
 type NavLink = {
   to: string;
@@ -42,89 +41,100 @@ type NavLink = {
 
 const OPERATION_LINKS: NavLink[] = [
   {
-    to: '/dashboard',
-    label: 'Inicio',
+    to: "/dashboard",
+    label: "Inicio",
     icon: <HouseIcon className="size-4" />,
     exact: true,
-    linkKey: 'dashboard',
+    linkKey: "dashboard",
   },
-  { to: '/items', label: 'Items', icon: <PackageIcon className="size-4" />, linkKey: 'items' },
   {
-    to: '/sales',
-    label: 'Ventas',
+    to: "/items",
+    label: "Items",
+    icon: <PackageIcon className="size-4" />,
+    linkKey: "items",
+  },
+  {
+    to: "/sales",
+    label: "Ventas",
     icon: <ShoppingCartIcon className="size-4" />,
-    linkKey: 'sales',
+    linkKey: "sales",
   },
   {
-    to: '/customers',
-    label: 'Clientes',
+    to: "/customers",
+    label: "Clientes",
     icon: <UsersIcon className="size-4" />,
-    linkKey: 'customers',
+    linkKey: "customers",
   },
   {
-    to: '/customers/segments',
-    label: 'Segmentación',
+    to: "/customers/segments",
+    label: "Segmentación",
     icon: <ChartBarIcon className="size-4" />,
-    linkKey: 'segments',
+    linkKey: "segments",
   },
   {
-    to: '/warehouses',
-    label: 'Depósitos',
+    to: "/warehouses",
+    label: "Depósitos",
     icon: <WarehouseIcon className="size-4" />,
-    linkKey: 'warehouses',
+    linkKey: "warehouses",
   },
   {
-    to: '/stock-movements',
-    label: 'Movimientos',
+    to: "/stock-movements",
+    label: "Movimientos",
     icon: <ArrowsLeftRightIcon className="size-4" />,
-    linkKey: 'stock-movements',
+    linkKey: "stock-movements",
   },
   {
-    to: '/providers',
-    label: 'Proveedores',
+    to: "/providers",
+    label: "Proveedores",
     icon: <TruckIcon className="size-4" />,
-    linkKey: 'providers',
+    linkKey: "providers",
   },
   {
-    to: '/provider-orders',
-    label: 'Órdenes',
+    to: "/provider-orders",
+    label: "Órdenes",
     icon: <ClipboardTextIcon className="size-4" />,
-    linkKey: 'provider-orders',
+    linkKey: "provider-orders",
   },
   {
-    to: '/reports',
-    label: 'Reportes',
+    to: "/reports",
+    label: "Reportes",
     icon: <ChartLineUpIcon className="size-4" />,
-    linkKey: 'reports',
+    linkKey: "reports",
   },
 ];
 
 const ALERT_LINKS: NavLink[] = [
   {
-    to: '/recommendations',
-    label: 'Recomendaciones',
+    to: "/recommendations",
+    label: "Recomendaciones",
     icon: <BellRingingIcon className="size-4" />,
-    linkKey: 'recommendations',
-  },
-  {
-    to: '/notifications',
-    label: 'Notificaciones',
-    icon: <BellIcon className="size-4" />,
-    linkKey: 'notifications',
+    linkKey: "recommendations",
   },
 ];
 
 const SETTINGS_LINKS: NavLink[] = [
   {
-    to: '/settings/organization',
-    label: 'Organización',
+    to: "/settings/organization",
+    label: "Organización",
     exact: true,
-    linkKey: 'settings-organization',
+    linkKey: "settings-organization",
   },
-  { to: '/settings/branches', label: 'Sucursales', linkKey: 'settings-branches' },
-  { to: '/settings/categories', label: 'Categorías', linkKey: 'settings-categories' },
-  { to: '/settings/users', label: 'Usuarios', linkKey: 'settings-users' },
-  { to: '/settings/external-data', label: 'Datos externos', linkKey: 'settings-external-data' },
+  {
+    to: "/settings/branches",
+    label: "Sucursales",
+    linkKey: "settings-branches",
+  },
+  {
+    to: "/settings/categories",
+    label: "Categorías",
+    linkKey: "settings-categories",
+  },
+  { to: "/settings/users", label: "Usuarios", linkKey: "settings-users" },
+  {
+    to: "/settings/external-data",
+    label: "Datos externos",
+    linkKey: "settings-external-data",
+  },
 ];
 
 function isLinkActive(pathname: string, to: string, exact = false): boolean {
@@ -141,13 +151,19 @@ function MainSidebar({ role }: MainSidebarProps) {
     select: (state) => state.location.pathname,
   });
 
-  const visibleOperations = OPERATION_LINKS.filter((link) => canSeeLink(role, link.linkKey));
-  const visibleAlerts = ALERT_LINKS.filter((link) => canSeeLink(role, link.linkKey));
-  const visibleSettings = SETTINGS_LINKS.filter((link) => canSeeLink(role, link.linkKey));
+  const visibleOperations = OPERATION_LINKS.filter((link) =>
+    canSeeLink(role, link.linkKey),
+  );
+  const visibleAlerts = ALERT_LINKS.filter((link) =>
+    canSeeLink(role, link.linkKey),
+  );
+  const visibleSettings = SETTINGS_LINKS.filter((link) =>
+    canSeeLink(role, link.linkKey),
+  );
   const showSettingsGroup = visibleSettings.length > 0;
-  const showOrganizationParent = canSeeLink(role, 'settings-organization');
+  const showOrganizationParent = canSeeLink(role, "settings-organization");
   const settingsSubLinks = visibleSettings.filter(
-    (link) => link.linkKey !== 'settings-organization',
+    (link) => link.linkKey !== "settings-organization",
   );
 
   return (
@@ -176,7 +192,10 @@ function MainSidebar({ role }: MainSidebarProps) {
                   <SidebarMenuButton
                     isActive={isLinkActive(pathname, link.to, link.exact)}
                     render={
-                      <Link to={link.to} activeOptions={{ exact: link.exact ?? false }}>
+                      <Link
+                        to={link.to}
+                        activeOptions={{ exact: link.exact ?? false }}
+                      >
                         {link.icon}
                         <span>{link.label}</span>
                       </Link>
@@ -198,7 +217,10 @@ function MainSidebar({ role }: MainSidebarProps) {
                     <SidebarMenuButton
                       isActive={isLinkActive(pathname, link.to, link.exact)}
                       render={
-                        <Link to={link.to} activeOptions={{ exact: link.exact ?? false }}>
+                        <Link
+                          to={link.to}
+                          activeOptions={{ exact: link.exact ?? false }}
+                        >
                           {link.icon}
                           <span>{link.label}</span>
                         </Link>
@@ -224,7 +246,11 @@ function MainSidebar({ role }: MainSidebarProps) {
                 <SidebarMenuItem>
                   {showOrganizationParent ? (
                     <SidebarMenuButton
-                      isActive={isLinkActive(pathname, '/settings/organization', true)}
+                      isActive={isLinkActive(
+                        pathname,
+                        "/settings/organization",
+                        true,
+                      )}
                       render={
                         <Link to="/settings/organization">
                           <span>General</span>

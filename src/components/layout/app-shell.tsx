@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react';
-import { useMe } from '@/api/queries/use-auth';
-import { MainSidebar } from '@/components/layout/sidebar';
-import { Topbar } from '@/components/layout/topbar';
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { roleFromId } from '@/lib/role';
+import type { ReactNode } from "react";
+import { useMe } from "@/api/queries/use-auth";
+import { MainSidebar } from "@/components/layout/main-sidebar";
+import { Topbar } from "@/components/layout/topbar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { roleFromId } from "@/lib/role";
 
 type AppShellProps = { children: ReactNode };
 

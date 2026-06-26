@@ -12,7 +12,6 @@ export type NavLinkKey =
   | 'provider-orders'
   | 'reports'
   | 'recommendations'
-  | 'notifications'
   | 'settings-organization'
   | 'settings-branches'
   | 'settings-categories'
@@ -31,7 +30,6 @@ export const LINK_VISIBILITY: Record<NavLinkKey, readonly UserRole[]> = {
   'provider-orders': ['Admin', 'Manager', 'Employee'],
   reports: ['Admin', 'Manager', 'Employee'],
   recommendations: ['Admin', 'Manager', 'Employee'],
-  notifications: ['Admin', 'Manager', 'Employee'],
   'settings-organization': ['Admin'],
   'settings-branches': ['Admin'],
   'settings-categories': ['Admin', 'Manager'],
