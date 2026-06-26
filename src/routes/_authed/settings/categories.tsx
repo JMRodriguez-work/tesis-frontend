@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { useMe } from '@/api/queries/use-auth';
 import { type Category, useItemCategories } from '@/api/queries/use-item-categories';
+import { RoleGuard } from '@/components/auth/role-guard';
 import { CategoryDeleteDialog } from '@/components/categories/category-delete-dialog';
 import { CategoryStatusBadge } from '@/components/categories/category-status-badge';
 import { actionsColumn, textColumn } from '@/components/data-table/column-defs';
@@ -131,82 +132,84 @@ function CategoriesPage() {
   ) : null;
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Categorías</h1>
-          {data?.meta.total !== undefined ? (
-            <p className="text-xs text-muted-foreground">{data.meta.total} categorías</p>
+    <RoleGuard allow={['Admin', 'Manager']}>
+      <div className="flex flex-col gap-4 p-6">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold">Categorías</h1>
+            {data?.meta.total !== undefined ? (
+              <p className="text-xs text-muted-foreground">{data.meta.total} categorías</p>
+            ) : null}
+          </div>
+          {canEdit ? (
+            <Button onClick={() => setCreateOpen(true)}>
+              <PlusIcon className="size-4" />
+              Nueva categoría
+            </Button>
           ) : null}
-        </div>
-        {canEdit ? (
-          <Button onClick={() => setCreateOpen(true)}>
-            <PlusIcon className="size-4" />
-            Nueva categoría
-          </Button>
-        ) : null}
-      </header>
+        </header>
 
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="flex w-full max-w-sm flex-col gap-1.5">
-          <label htmlFor="categories-search" className="text-xs font-medium">
-            Buscar
-          </label>
-          <Input
-            id="categories-search"
-            placeholder="Nombre de la categoría…"
-            value={search.search}
-            onChange={(e) => handleSearchChange(e.target.value)}
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex w-full max-w-sm flex-col gap-1.5">
+            <label htmlFor="categories-search" className="text-xs font-medium">
+              Buscar
+            </label>
+            <Input
+              id="categories-search"
+              placeholder="Nombre de la categoría…"
+              value={search.search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+            />
+          </div>
+          <ComboboxField
+            label="Estado"
+            items={STATUS_ITEMS}
+            value={search.showInactive ? 'true' : 'false'}
+            onValueChange={handleShowInactiveChange}
+            placeholder="Solo activas"
+            className="w-44"
           />
         </div>
-        <ComboboxField
-          label="Estado"
-          items={STATUS_ITEMS}
-          value={search.showInactive ? 'true' : 'false'}
-          onValueChange={handleShowInactiveChange}
-          placeholder="Solo activas"
-          className="w-44"
+
+        <DataTable
+          data={data?.data ?? []}
+          columns={columns}
+          meta={data?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
+          onPageChange={handlePageChange}
+          isLoading={isLoading}
+          error={error}
+          onRetry={() => void refetch()}
+          emptyTitle="Sin categorías"
+          emptyDescription={
+            canEdit
+              ? 'Aún no hay categorías. Creá la primera.'
+              : 'No hay categorías registradas en esta sucursal.'
+          }
+          emptyAction={emptyAction}
+        />
+
+        <CategoryDeleteDialog
+          open={toDelete !== null}
+          onOpenChange={(open) => {
+            if (!open) setToDelete(null);
+          }}
+          category={toDelete}
+        />
+
+        <CategoryCreateDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          branchId={role === 'Admin' ? (currentBranchId ?? undefined) : undefined}
+        />
+        <CategoryEditDialog
+          open={editing !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditing(null);
+          }}
+          category={editing}
         />
       </div>
-
-      <DataTable
-        data={data?.data ?? []}
-        columns={columns}
-        meta={data?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
-        onPageChange={handlePageChange}
-        isLoading={isLoading}
-        error={error}
-        onRetry={() => void refetch()}
-        emptyTitle="Sin categorías"
-        emptyDescription={
-          canEdit
-            ? 'Aún no hay categorías. Creá la primera.'
-            : 'No hay categorías registradas en esta sucursal.'
-        }
-        emptyAction={emptyAction}
-      />
-
-      <CategoryDeleteDialog
-        open={toDelete !== null}
-        onOpenChange={(open) => {
-          if (!open) setToDelete(null);
-        }}
-        category={toDelete}
-      />
-
-      <CategoryCreateDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        branchId={role === 'Admin' ? (currentBranchId ?? undefined) : undefined}
-      />
-      <CategoryEditDialog
-        open={editing !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditing(null);
-        }}
-        category={editing}
-      />
-    </div>
+    </RoleGuard>
   );
 }
 

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { useMe } from '@/api/queries/use-auth';
 import { type BranchItem, useBranches } from '@/api/queries/use-branches';
+import { RoleGuard } from '@/components/auth/role-guard';
 import { BranchCreateDialog } from '@/components/branches/branch-create-dialog';
 import { BranchDeleteDialog } from '@/components/branches/branch-delete-dialog';
 import { BranchEditDialog } from '@/components/branches/branch-edit-dialog';
@@ -122,77 +123,79 @@ function BranchesPage() {
   ) : null;
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Sucursales</h1>
-          {data?.meta.total !== undefined ? (
-            <p className="text-xs text-muted-foreground">{data.meta.total} sucursales</p>
+    <RoleGuard allow={['Admin']}>
+      <div className="flex flex-col gap-4 p-6">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold">Sucursales</h1>
+            {data?.meta.total !== undefined ? (
+              <p className="text-xs text-muted-foreground">{data.meta.total} sucursales</p>
+            ) : null}
+          </div>
+          {canEdit ? (
+            <Button onClick={() => setCreateOpen(true)}>
+              <PlusIcon className="size-4" />
+              Nueva sucursal
+            </Button>
           ) : null}
-        </div>
-        {canEdit ? (
-          <Button onClick={() => setCreateOpen(true)}>
-            <PlusIcon className="size-4" />
-            Nueva sucursal
-          </Button>
-        ) : null}
-      </header>
+        </header>
 
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="flex w-full max-w-sm flex-col gap-1.5">
-          <label htmlFor="branches-search" className="text-xs font-medium">
-            Buscar
-          </label>
-          <Input
-            id="branches-search"
-            placeholder="Nombre de la sucursal…"
-            value={search.search}
-            onChange={(e) => handleSearchChange(e.target.value)}
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex w-full max-w-sm flex-col gap-1.5">
+            <label htmlFor="branches-search" className="text-xs font-medium">
+              Buscar
+            </label>
+            <Input
+              id="branches-search"
+              placeholder="Nombre de la sucursal…"
+              value={search.search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+            />
+          </div>
+          <ComboboxField
+            label="Estado"
+            items={STATUS_ITEMS}
+            value={search.showInactive ? 'true' : 'false'}
+            onValueChange={handleShowInactiveChange}
+            placeholder="Solo activas"
+            className="w-44"
           />
         </div>
-        <ComboboxField
-          label="Estado"
-          items={STATUS_ITEMS}
-          value={search.showInactive ? 'true' : 'false'}
-          onValueChange={handleShowInactiveChange}
-          placeholder="Solo activas"
-          className="w-44"
+
+        <DataTable
+          data={data?.data ?? []}
+          columns={columns}
+          meta={data?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
+          onPageChange={handlePageChange}
+          isLoading={isLoading}
+          error={error}
+          onRetry={() => void refetch()}
+          emptyTitle="Sin sucursales"
+          emptyDescription={
+            canEdit
+              ? 'Aún no hay sucursales. Creá la primera.'
+              : 'No hay sucursales registradas en la organización.'
+          }
+          emptyAction={emptyAction}
+        />
+
+        <BranchCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
+        <BranchEditDialog
+          open={editing !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditing(null);
+          }}
+          branch={editing}
+        />
+        <BranchDeleteDialog
+          open={toDelete !== null}
+          onOpenChange={(open) => {
+            if (!open) setToDelete(null);
+          }}
+          branch={toDelete}
         />
       </div>
-
-      <DataTable
-        data={data?.data ?? []}
-        columns={columns}
-        meta={data?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
-        onPageChange={handlePageChange}
-        isLoading={isLoading}
-        error={error}
-        onRetry={() => void refetch()}
-        emptyTitle="Sin sucursales"
-        emptyDescription={
-          canEdit
-            ? 'Aún no hay sucursales. Creá la primera.'
-            : 'No hay sucursales registradas en la organización.'
-        }
-        emptyAction={emptyAction}
-      />
-
-      <BranchCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <BranchEditDialog
-        open={editing !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditing(null);
-        }}
-        branch={editing}
-      />
-      <BranchDeleteDialog
-        open={toDelete !== null}
-        onOpenChange={(open) => {
-          if (!open) setToDelete(null);
-        }}
-        branch={toDelete}
-      />
-    </div>
+    </RoleGuard>
   );
 }
 

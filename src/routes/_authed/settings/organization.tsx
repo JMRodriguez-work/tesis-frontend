@@ -5,6 +5,7 @@ import { type Resolver, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { useMe } from '@/api/queries/use-auth';
 import { useOrganization, useUpdateOrganization } from '@/api/queries/use-organizations';
+import { RoleGuard } from '@/components/auth/role-guard';
 import { Skeleton } from '@/components/feedback/skeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -74,54 +75,56 @@ function OrganizationPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <header>
-        <h1 className="text-lg font-semibold">Organización</h1>
-        <p className="text-xs text-muted-foreground">
-          Datos del comercio al que pertenece tu cuenta.
-        </p>
-      </header>
+    <RoleGuard allow={['Admin']}>
+      <div className="flex flex-col gap-4 p-6">
+        <header>
+          <h1 className="text-lg font-semibold">Organización</h1>
+          <p className="text-xs text-muted-foreground">
+            Datos del comercio al que pertenece tu cuenta.
+          </p>
+        </header>
 
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle>Información general</CardTitle>
-          <CardDescription>
-            {canEdit
-              ? 'Editá el nombre del comercio. El cambio se aplica a todos los miembros.'
-              : 'Solo un administrador puede editar esta información.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            id="organization-form"
-            onSubmit={handleSubmit(onSubmit)}
-            className="flex flex-col gap-3"
-          >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="organization-name">Nombre *</Label>
-              <Input
-                id="organization-name"
-                autoComplete="off"
-                disabled={!canEdit}
-                {...register('name')}
-              />
-              {errors.name ? (
-                <p className="text-xs text-destructive">{errors.name.message}</p>
-              ) : null}
-            </div>
-            <div className="flex justify-end">
-              <Button
-                type="submit"
-                form="organization-form"
-                disabled={!canEdit || submitting || updateOrganization.isPending}
-              >
-                {updateOrganization.isPending ? 'Guardando…' : 'Guardar cambios'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle>Información general</CardTitle>
+            <CardDescription>
+              {canEdit
+                ? 'Editá el nombre del comercio. El cambio se aplica a todos los miembros.'
+                : 'Solo un administrador puede editar esta información.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              id="organization-form"
+              onSubmit={handleSubmit(onSubmit)}
+              className="flex flex-col gap-3"
+            >
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="organization-name">Nombre *</Label>
+                <Input
+                  id="organization-name"
+                  autoComplete="off"
+                  disabled={!canEdit}
+                  {...register('name')}
+                />
+                {errors.name ? (
+                  <p className="text-xs text-destructive">{errors.name.message}</p>
+                ) : null}
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  form="organization-form"
+                  disabled={!canEdit || submitting || updateOrganization.isPending}
+                >
+                  {updateOrganization.isPending ? 'Guardando…' : 'Guardar cambios'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </RoleGuard>
   );
 }
 

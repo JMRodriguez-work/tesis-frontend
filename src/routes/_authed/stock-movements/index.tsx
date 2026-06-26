@@ -298,7 +298,20 @@ function StockMovementsPage() {
         onRetry={() => void refetch()}
         emptyTitle="Sin movimientos"
         emptyDescription={
-          canWrite ? 'Aún no hay movimientos registrados.' : 'No hay movimientos en esta sucursal.'
+          canWrite
+            ? 'Aún no hay movimientos registrados. Creá el primer ajuste.'
+            : 'No hay movimientos en esta sucursal.'
+        }
+        emptyAction={
+          canWrite && !showBranchWarning ? (
+            <Button
+              size="sm"
+              onClick={() => void navigate({ to: '/stock-movements/new-adjustment' })}
+            >
+              <PlusIcon className="size-4" />
+              Nuevo ajuste
+            </Button>
+          ) : null
         }
         caption="Lista de movimientos de stock"
       />

@@ -169,6 +169,14 @@ function ProviderOrdersPage() {
         emptyDescription={
           canWrite ? 'Aún no hay órdenes. Creá la primera.' : 'No hay órdenes registradas.'
         }
+        emptyAction={
+          canWrite && !showBranchWarning ? (
+            <Button onClick={() => void navigate({ to: '/provider-orders/new' })}>
+              <PlusIcon className="size-4" />
+              Nueva orden
+            </Button>
+          ) : null
+        }
         caption="Lista de órdenes a proveedores"
       />
     </div>

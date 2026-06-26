@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useMe } from '@/api/queries/use-auth';
 import { useBranches } from '@/api/queries/use-branches';
 import { type User, useUsers } from '@/api/queries/use-users';
+import { RoleGuard } from '@/components/auth/role-guard';
 import { actionsColumn, textColumn } from '@/components/data-table/column-defs';
 import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
@@ -168,104 +169,108 @@ function UsersPage() {
   ) : null;
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Usuarios</h1>
-          {data?.meta.total !== undefined ? (
-            <p className="text-xs text-muted-foreground">{data.meta.total} usuarios</p>
+    <RoleGuard allow={['Admin']}>
+      <div className="flex flex-col gap-4 p-6">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold">Usuarios</h1>
+            {data?.meta.total !== undefined ? (
+              <p className="text-xs text-muted-foreground">{data.meta.total} usuarios</p>
+            ) : null}
+          </div>
+          {canEdit ? (
+            <Button onClick={() => setCreateOpen(true)}>
+              <PlusIcon className="size-4" />
+              Nuevo usuario
+            </Button>
           ) : null}
-        </div>
-        {canEdit ? (
-          <Button onClick={() => setCreateOpen(true)}>
-            <PlusIcon className="size-4" />
-            Nuevo usuario
-          </Button>
-        ) : null}
-      </header>
+        </header>
 
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="flex w-full max-w-sm flex-col gap-1.5">
-          <label htmlFor="users-search" className="text-xs font-medium">
-            Buscar
-          </label>
-          <Input
-            id="users-search"
-            placeholder="Nombre o email…"
-            value={search.search}
-            onChange={(e) => handleSearchChange(e.target.value)}
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex w-full max-w-sm flex-col gap-1.5">
+            <label htmlFor="users-search" className="text-xs font-medium">
+              Buscar
+            </label>
+            <Input
+              id="users-search"
+              placeholder="Nombre o email…"
+              value={search.search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+            />
+          </div>
+          <ComboboxField
+            label="Rol"
+            items={ROLE_FILTER_ITEMS}
+            value={search.roleId || null}
+            onValueChange={handleRoleChange}
+            placeholder="Todos los roles"
+            className="w-44"
+          />
+          <ComboboxField
+            label="Sucursal"
+            items={branchItems}
+            value={search.branchId || null}
+            onValueChange={handleBranchChange}
+            placeholder="Todas las sucursales"
+            className="w-56"
+          />
+          <ComboboxField
+            label="Estado"
+            items={STATUS_ITEMS}
+            value={search.showInactive ? 'true' : 'false'}
+            onValueChange={handleShowInactiveChange}
+            placeholder="Solo activos"
+            className="w-44"
           />
         </div>
-        <ComboboxField
-          label="Rol"
-          items={ROLE_FILTER_ITEMS}
-          value={search.roleId || null}
-          onValueChange={handleRoleChange}
-          placeholder="Todos los roles"
-          className="w-44"
+
+        <DataTable
+          data={data?.data ?? []}
+          columns={columns}
+          meta={data?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
+          onPageChange={handlePageChange}
+          isLoading={isLoading}
+          error={error}
+          onRetry={() => void refetch()}
+          emptyTitle="Sin usuarios"
+          emptyDescription={
+            canEdit
+              ? 'Aún no hay usuarios. Creá el primero.'
+              : 'No hay usuarios en la organización.'
+          }
+          emptyAction={emptyAction}
         />
-        <ComboboxField
-          label="Sucursal"
-          items={branchItems}
-          value={search.branchId || null}
-          onValueChange={handleBranchChange}
-          placeholder="Todas las sucursales"
-          className="w-56"
+
+        <UserCreateDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          onCreated={() => {
+            void refetch();
+          }}
         />
-        <ComboboxField
-          label="Estado"
-          items={STATUS_ITEMS}
-          value={search.showInactive ? 'true' : 'false'}
-          onValueChange={handleShowInactiveChange}
-          placeholder="Solo activos"
-          className="w-44"
+        <UserEditDialog
+          open={editing !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditing(null);
+          }}
+          user={editing}
+        />
+        <UserChangeRoleDialog
+          open={changingRoleFor !== null}
+          onOpenChange={(open) => {
+            if (!open) setChangingRoleFor(null);
+          }}
+          user={changingRoleFor}
+        />
+        <UserDeleteDialog
+          open={toDelete !== null}
+          onOpenChange={(open) => {
+            if (!open) setToDelete(null);
+          }}
+          user={toDelete}
         />
       </div>
-
-      <DataTable
-        data={data?.data ?? []}
-        columns={columns}
-        meta={data?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
-        onPageChange={handlePageChange}
-        isLoading={isLoading}
-        error={error}
-        onRetry={() => void refetch()}
-        emptyTitle="Sin usuarios"
-        emptyDescription={
-          canEdit ? 'Aún no hay usuarios. Creá el primero.' : 'No hay usuarios en la organización.'
-        }
-        emptyAction={emptyAction}
-      />
-
-      <UserCreateDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreated={() => {
-          void refetch();
-        }}
-      />
-      <UserEditDialog
-        open={editing !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditing(null);
-        }}
-        user={editing}
-      />
-      <UserChangeRoleDialog
-        open={changingRoleFor !== null}
-        onOpenChange={(open) => {
-          if (!open) setChangingRoleFor(null);
-        }}
-        user={changingRoleFor}
-      />
-      <UserDeleteDialog
-        open={toDelete !== null}
-        onOpenChange={(open) => {
-          if (!open) setToDelete(null);
-        }}
-        user={toDelete}
-      />
-    </div>
+    </RoleGuard>
   );
 }
 

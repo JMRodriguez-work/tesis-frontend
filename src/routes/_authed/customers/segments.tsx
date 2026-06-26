@@ -3,6 +3,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
 import { useMe } from '@/api/queries/use-auth';
 import { type CustomerSegmentRow, useCustomerSegments } from '@/api/queries/use-customer-analytics';
+import { RoleGuard } from '@/components/auth/role-guard';
 import { DetectInactiveButton } from '@/components/customer-analytics/detect-inactive-button';
 import { SEGMENT_CONFIG, SegmentBadge } from '@/components/customer-analytics/segment-badge';
 import { SegmentSummaryGrid } from '@/components/customer-analytics/segment-summary-grid';
@@ -115,47 +116,51 @@ function CustomerSegmentsPage() {
   );
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold">Segmentación de clientes</h1>
-          {data?.meta.total !== undefined ? (
-            <p className="text-xs text-muted-foreground">{data.meta.total} clientes segmentados</p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              VIP, frecuentes, ocasionales, nuevos, inactivos y dormidos
-            </p>
-          )}
+    <RoleGuard allow={['Admin', 'Manager']}>
+      <div className="flex flex-col gap-4 p-6">
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-lg font-semibold">Segmentación de clientes</h1>
+            {data?.meta.total !== undefined ? (
+              <p className="text-xs text-muted-foreground">
+                {data.meta.total} clientes segmentados
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                VIP, frecuentes, ocasionales, nuevos, inactivos y dormidos
+              </p>
+            )}
+          </div>
+          {canDetect ? <DetectInactiveButton branchId={adminBranchId} variant="outline" /> : null}
+        </header>
+
+        <SegmentSummaryGrid customers={data?.data ?? []} />
+
+        <div className="flex flex-wrap items-end gap-2">
+          <ComboboxField
+            label="Segmento"
+            items={SEGMENT_ITEMS}
+            value={search.segment}
+            onValueChange={handleSegmentChange}
+            placeholder="Todos los segmentos"
+            className="w-56"
+          />
         </div>
-        {canDetect ? <DetectInactiveButton branchId={adminBranchId} variant="outline" /> : null}
-      </header>
 
-      <SegmentSummaryGrid customers={data?.data ?? []} />
-
-      <div className="flex flex-wrap items-end gap-2">
-        <ComboboxField
-          label="Segmento"
-          items={SEGMENT_ITEMS}
-          value={search.segment}
-          onValueChange={handleSegmentChange}
-          placeholder="Todos los segmentos"
-          className="w-56"
+        <DataTable
+          data={data?.data ?? []}
+          columns={columns}
+          meta={data?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
+          onPageChange={handlePageChange}
+          isLoading={isLoading}
+          error={error}
+          onRetry={() => void refetch()}
+          emptyTitle="Sin clientes segmentados"
+          emptyDescription="Asegurate de tener ventas registradas para que el back pueda segmentar a tus clientes."
+          caption="Lista de clientes segmentados"
         />
       </div>
-
-      <DataTable
-        data={data?.data ?? []}
-        columns={columns}
-        meta={data?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
-        onPageChange={handlePageChange}
-        isLoading={isLoading}
-        error={error}
-        onRetry={() => void refetch()}
-        emptyTitle="Sin clientes segmentados"
-        emptyDescription="Asegurate de tener ventas registradas para que el back pueda segmentar a tus clientes."
-        caption="Lista de clientes segmentados"
-      />
-    </div>
+    </RoleGuard>
   );
 }
 

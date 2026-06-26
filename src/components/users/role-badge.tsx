@@ -3,6 +3,7 @@ import type { UserRole } from '@/lib/role';
 
 type RoleBadgeProps = {
   role: UserRole | null;
+  className?: string;
 };
 
 type BadgeVariant = NonNullable<Parameters<typeof badgeVariants>[0]>['variant'];
@@ -13,9 +14,19 @@ function variantForRole(role: UserRole | null): BadgeVariant {
   return 'outline';
 }
 
-function RoleBadge({ role }: RoleBadgeProps) {
-  if (!role) return <Badge variant="outline">Sin rol</Badge>;
-  return <Badge variant={variantForRole(role)}>{role}</Badge>;
+function RoleBadge({ role, className }: RoleBadgeProps) {
+  if (!role) {
+    return (
+      <Badge variant="outline" className={className}>
+        Sin rol
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant={variantForRole(role)} className={className}>
+      {role}
+    </Badge>
+  );
 }
 
 export { RoleBadge };

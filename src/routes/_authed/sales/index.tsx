@@ -154,7 +154,15 @@ function SalesIndexPage() {
         error={error}
         onRetry={() => void refetch()}
         emptyTitle="Sin ventas"
-        emptyDescription="Aún no hay ventas registradas en esta sucursal."
+        emptyDescription="Aún no hay ventas registradas en esta sucursal. Creá la primera."
+        emptyAction={
+          !showBranchWarning ? (
+            <Button size="sm" onClick={() => void navigate({ to: '/sales/new' })}>
+              <PlusIcon className="size-4" />
+              Nueva venta
+            </Button>
+          ) : null
+        }
         caption="Lista de ventas"
       />
     </div>

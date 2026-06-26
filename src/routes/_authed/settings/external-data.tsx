@@ -16,6 +16,7 @@ import {
   useEnqueueFetchExternalData,
   useExternalDataSources,
 } from '@/api/queries/use-external-data';
+import { RoleGuard } from '@/components/auth/role-guard';
 import { DataTable } from '@/components/data-table/data-table';
 import { ExternalDataSourceCreateDialog } from '@/components/external-data/external-data-source-create-dialog';
 import { ExternalDataSourceDeleteDialog } from '@/components/external-data/external-data-source-delete-dialog';
@@ -275,81 +276,83 @@ function ExternalDataPage() {
   const typeValue = search.type ?? 'all';
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Datos externos</h1>
-          <p className="text-xs text-muted-foreground">
-            Fuentes de datos externos que alimentan las recomendaciones. El sistema corre un fetch
-            diario automático.
-          </p>
-        </div>
-        {canWrite ? (
-          <Button onClick={() => setCreateOpen(true)}>
-            <PlusIcon className="size-4" />
-            Nueva fuente
-          </Button>
-        ) : null}
-      </header>
+    <RoleGuard allow={['Admin']}>
+      <div className="flex flex-col gap-4 p-6">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold">Datos externos</h1>
+            <p className="text-xs text-muted-foreground">
+              Fuentes de datos externos que alimentan las recomendaciones. El sistema corre un fetch
+              diario automático.
+            </p>
+          </div>
+          {canWrite ? (
+            <Button onClick={() => setCreateOpen(true)}>
+              <PlusIcon className="size-4" />
+              Nueva fuente
+            </Button>
+          ) : null}
+        </header>
 
-      <div className="flex flex-wrap items-end gap-2">
-        <ComboboxField
-          label="Tipo"
-          items={TYPE_FILTER_ITEMS}
-          value={typeValue}
-          onValueChange={handleTypeChange}
-          placeholder="Todos los tipos"
-          className="w-56"
+        <div className="flex flex-wrap items-end gap-2">
+          <ComboboxField
+            label="Tipo"
+            items={TYPE_FILTER_ITEMS}
+            value={typeValue}
+            onValueChange={handleTypeChange}
+            placeholder="Todos los tipos"
+            className="w-56"
+          />
+          <ComboboxField
+            label="Estado"
+            items={STATUS_ITEMS}
+            value={statusValue}
+            onValueChange={handleStatusChange}
+            placeholder="Todas"
+            className="w-44"
+          />
+        </div>
+
+        <DataTable
+          data={data?.data ?? []}
+          columns={columns}
+          meta={data?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
+          onPageChange={handlePageChange}
+          isLoading={isLoading}
+          error={error}
+          onRetry={() => void refetch()}
+          emptyTitle="Sin fuentes externas"
+          emptyDescription={
+            canWrite
+              ? 'Aún no hay fuentes configuradas. Creá la primera para empezar a recibir datos.'
+              : 'No hay fuentes externas registradas.'
+          }
+          emptyAction={emptyAction}
+          caption="Lista de fuentes de datos externos"
         />
-        <ComboboxField
-          label="Estado"
-          items={STATUS_ITEMS}
-          value={statusValue}
-          onValueChange={handleStatusChange}
-          placeholder="Todas"
-          className="w-44"
+
+        <p className="text-xs text-muted-foreground">
+          El sistema corre un fetch automático diario. Usá "Fetch now" para forzar una ejecución
+          inmediata.
+        </p>
+
+        <ExternalDataSourceCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
+        <ExternalDataSourceEditDialog
+          open={editing !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditing(null);
+          }}
+          source={editing}
+        />
+        <ExternalDataSourceDeleteDialog
+          open={toDelete !== null}
+          onOpenChange={(open) => {
+            if (!open) setToDelete(null);
+          }}
+          source={toDelete}
         />
       </div>
-
-      <DataTable
-        data={data?.data ?? []}
-        columns={columns}
-        meta={data?.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 }}
-        onPageChange={handlePageChange}
-        isLoading={isLoading}
-        error={error}
-        onRetry={() => void refetch()}
-        emptyTitle="Sin fuentes externas"
-        emptyDescription={
-          canWrite
-            ? 'Aún no hay fuentes configuradas. Creá la primera para empezar a recibir datos.'
-            : 'No hay fuentes externas registradas.'
-        }
-        emptyAction={emptyAction}
-        caption="Lista de fuentes de datos externos"
-      />
-
-      <p className="text-xs text-muted-foreground">
-        El sistema corre un fetch automático diario. Usá "Fetch now" para forzar una ejecución
-        inmediata.
-      </p>
-
-      <ExternalDataSourceCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <ExternalDataSourceEditDialog
-        open={editing !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditing(null);
-        }}
-        source={editing}
-      />
-      <ExternalDataSourceDeleteDialog
-        open={toDelete !== null}
-        onOpenChange={(open) => {
-          if (!open) setToDelete(null);
-        }}
-        source={toDelete}
-      />
-    </div>
+    </RoleGuard>
   );
 }
 

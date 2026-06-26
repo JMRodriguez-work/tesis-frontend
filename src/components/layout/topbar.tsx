@@ -14,12 +14,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { RoleBadge } from '@/components/users/role-badge';
 import { mapApiError } from '@/lib/api-error';
+import { roleFromId } from '@/lib/role';
 
 function Topbar() {
   const navigate = useNavigate();
   const { data: me } = useMe();
   const signOut = useSignOut();
+  const role = roleFromId(me?.roleId ?? null);
 
   const handleSignOut = () => {
     signOut.mutate(undefined, {
@@ -42,6 +45,7 @@ function Topbar() {
       </div>
       <div className="flex items-center gap-1">
         <NotificationsBell />
+        {role ? <RoleBadge role={role} className="mr-2" /> : null}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
