@@ -1,15 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { fetchMe, useSignUp } from '@/api/queries/use-auth';
+import { useSignUp } from '@/api/queries/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { mapApiError } from '@/lib/api-error';
-import { authKeys } from '@/lib/query-keys';
 import { type SignUpInput, signUpSchema } from '@/lib/schemas/auth';
 
 const signupSearchSchema = z.object({
@@ -23,7 +21,6 @@ const Route = createFileRoute('/signup')({
 
 function SignupPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { redirect } = Route.useSearch();
   const signUp = useSignUp();
   const {
@@ -43,17 +40,8 @@ function SignupPage() {
         name: values.name,
       },
       {
-        onSuccess: async () => {
-          const me = await queryClient.fetchQuery({
-            queryKey: authKeys.me(),
-            queryFn: fetchMe,
-            staleTime: 60_000,
-          });
-          if (me && !me.organizationId) {
-            void navigate({ to: '/onboarding' });
-            return;
-          }
-          void navigate({ to: redirect || '/dashboard' });
+        onSuccess: () => {
+          void navigate({ to: '/onboarding' });
         },
         onError: (err) => {
           toast.error(mapApiError(err).message);

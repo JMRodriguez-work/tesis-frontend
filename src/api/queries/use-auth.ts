@@ -93,11 +93,15 @@ export function useSignIn() {
 }
 
 export function useSignUp() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: { email: string; password: string; name: string }) => {
       const { data, error } = await api.POST('/api/auth/sign-up/email', { body });
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: authKeys.me() });
     },
   });
 }

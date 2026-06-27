@@ -11,18 +11,11 @@ import { roleFromId } from '@/lib/role';
 
 const Route = createFileRoute('/_authed')({
   beforeLoad: async ({ context, location }) => {
-    const [me, branches] = await Promise.all([
-      context.queryClient.fetchQuery({
-        queryKey: authKeys.me(),
-        queryFn: fetchMe,
-        staleTime: 60_000,
-      }),
-      context.queryClient.fetchQuery({
-        queryKey: branchKeys.list({ limit: 100 }),
-        queryFn: () => fetchBranches({ limit: 100 }),
-        staleTime: 60_000,
-      }),
-    ]);
+    const me = await context.queryClient.fetchQuery({
+      queryKey: authKeys.me(),
+      queryFn: fetchMe,
+      staleTime: 60_000,
+    });
 
     if (!me) {
       throw redirect({
@@ -33,6 +26,12 @@ const Route = createFileRoute('/_authed')({
     if (!me.organizationId) {
       throw redirect({ to: '/onboarding' });
     }
+
+    const branches = await context.queryClient.fetchQuery({
+      queryKey: branchKeys.list({ limit: 100 }),
+      queryFn: () => fetchBranches({ limit: 100 }),
+      staleTime: 60_000,
+    });
 
     const store = useBranchStore.getState();
     const branchList = branches.data;

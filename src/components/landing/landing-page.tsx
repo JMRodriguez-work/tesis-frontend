@@ -31,7 +31,7 @@ function LandingPage() {
 
       <section className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-6 py-20 text-center">
         <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          Inteligencia analítica para almacenes y despensas
+          Plataforma de inteligencia analítica para la toma de decisiones en comercios minoristas
         </h1>
         <p className="max-w-xl text-sm text-muted-foreground text-balance sm:text-base">
           Registrá ventas, stock y clientes. Detectá patrones, anticipá faltantes y tomá decisiones

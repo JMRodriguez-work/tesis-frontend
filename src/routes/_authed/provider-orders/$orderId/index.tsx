@@ -1,7 +1,6 @@
 import {
   ArrowLeftIcon,
   CheckCircleIcon,
-  PackageIcon,
   TrashIcon,
   XCircleIcon,
 } from '@phosphor-icons/react';
@@ -187,12 +186,6 @@ function ProviderOrderDetailPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-dashed border-border bg-card/50 p-4 text-xs text-muted-foreground">
-        <PackageIcon className="mr-1 inline size-3.5" />
-        El historial de movimientos de stock asociados a esta orden se mostrará en{' '}
-        <span className="font-mono">/stock-movements</span> cuando esté implementado (Sprint 2.3,
-        HU-019).
-      </section>
 
       <ProviderOrderReceiveDialog
         open={receiveOpen}
