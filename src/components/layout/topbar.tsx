@@ -1,10 +1,10 @@
-import { ListIcon, SignOutIcon, UserIcon } from "@phosphor-icons/react";
-import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
-import { useMe, useSignOut } from "@/api/queries/use-auth";
-import { BranchSelector } from "@/components/layout/branch-selector";
-import { NotificationsBell } from "@/components/notifications/notifications-bell";
-import { Button } from "@/components/ui/button";
+import { ListIcon, SignOutIcon, UserIcon } from '@phosphor-icons/react';
+import { useNavigate } from '@tanstack/react-router';
+import { toast } from 'sonner';
+import { useMe, useSignOut } from '@/api/queries/use-auth';
+import { BranchSelector } from '@/components/layout/branch-selector';
+import { NotificationsBell } from '@/components/notifications/notifications-bell';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,11 +13,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { RoleBadge } from "@/components/users/role-badge";
-import { mapApiError } from "@/lib/api-error";
-import { roleFromId } from "@/lib/role";
+} from '@/components/ui/dropdown-menu';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { RoleBadge } from '@/components/users/role-badge';
+import { mapApiError } from '@/lib/api-error';
+import { roleFromId } from '@/lib/role';
 
 function Topbar() {
   const navigate = useNavigate();
@@ -28,7 +28,7 @@ function Topbar() {
   const handleSignOut = () => {
     signOut.mutate(undefined, {
       onSuccess: () => {
-        void navigate({ to: "/login" });
+        void navigate({ to: '/login' });
       },
       onError: (err) => {
         toast.error(mapApiError(err).message);
@@ -52,17 +52,14 @@ function Topbar() {
             render={(props) => (
               <Button variant="ghost" size="sm" {...props}>
                 <UserIcon className="size-4" />
-                <span className="hidden sm:inline">
-                  {me?.name ?? me?.email ?? "Cuenta"}
-                </span>
+                <span className="hidden sm:inline">{me?.name ?? me?.email ?? 'Cuenta'}</span>
               </Button>
             )}
           />
           <DropdownMenuContent align="end" className="min-w-44">
             <DropdownMenuGroup>
               <DropdownMenuLabel>
-                {[me?.name, me?.email].filter(Boolean).join(" · ") ||
-                  "Mi cuenta"}
+                {[me?.name, me?.email].filter(Boolean).join(' · ') || 'Mi cuenta'}
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
@@ -73,9 +70,7 @@ function Topbar() {
               disabled={signOut.isPending}
             >
               <SignOutIcon className="size-4" />
-              <span>
-                {signOut.isPending ? "Cerrando sesión…" : "Cerrar sesión"}
-              </span>
+              <span>{signOut.isPending ? 'Cerrando sesión…' : 'Cerrar sesión'}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

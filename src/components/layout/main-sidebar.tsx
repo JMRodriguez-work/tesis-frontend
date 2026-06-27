@@ -175,7 +175,7 @@ function MainSidebar({ role }: MainSidebarProps) {
               size="lg"
               render={
                 <Link to="/dashboard" aria-label="Ir al inicio">
-                  <span className="text-sm font-semibold">TFG Frontend</span>
+                  <span className="text-sm font-semibold">TFG</span>
                 </Link>
               }
             />

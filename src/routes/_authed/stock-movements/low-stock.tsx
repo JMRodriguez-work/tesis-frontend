@@ -5,7 +5,7 @@ import { useLowStockItems } from '@/api/queries/use-stock-movements';
 import { Skeleton } from '@/components/feedback/skeleton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { useCurrentBranchId } from '@/hooks/use-branch';
-import { formatDecimal } from '@/lib/format';
+import { formatQuantity } from '@/lib/format';
 import { roleFromId } from '@/lib/role';
 import { cn } from '@/lib/utils';
 
@@ -106,12 +106,14 @@ function LowStockPage() {
                       {row.warehouseName}
                     </Link>
                   </td>
-                  <td className="p-3 text-right font-mono">{formatDecimal(row.quantity)}</td>
+                  <td className="p-3 text-right font-mono">
+                    {formatQuantity(row.quantity, row.unitType ?? null)}
+                  </td>
                   <td className="p-3 text-right font-mono text-muted-foreground">
-                    {formatDecimal(row.minStock)}
+                    {formatQuantity(row.minStock, row.unitType ?? null)}
                   </td>
                   <td className="p-3 text-right font-mono font-semibold text-red-600">
-                    −{formatDecimal(row.deficit)}
+                    −{formatQuantity(row.deficit, row.unitType ?? null)}
                   </td>
                   {canWrite ? (
                     <td className="p-3 text-right">

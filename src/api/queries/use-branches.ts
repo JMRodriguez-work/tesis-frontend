@@ -13,16 +13,18 @@ type BranchDetailResponse = NonNullable<
 type BranchItem = BranchesListResponse['data']['data'][number];
 export type BranchesList = { data: BranchItem[]; meta: BranchesListResponse['data']['meta'] };
 
+export async function fetchBranches(query: Partial<ListBranchesQuery> = {}): Promise<BranchesList> {
+  const { data, error } = await api.GET('/api/v1/branches', {
+    params: { query: query as ListBranchesQuery },
+  });
+  if (error || !data) throw error ?? new Error('Failed to fetch branches');
+  return data.data;
+}
+
 export function useBranches(query: Partial<ListBranchesQuery> = {}) {
   return useQuery<BranchesList>({
     queryKey: branchKeys.list(query),
-    queryFn: async () => {
-      const { data, error } = await api.GET('/api/v1/branches', {
-        params: { query: query as ListBranchesQuery },
-      });
-      if (error || !data) throw error ?? new Error('Failed to fetch branches');
-      return data.data;
-    },
+    queryFn: () => fetchBranches(query),
   });
 }
 

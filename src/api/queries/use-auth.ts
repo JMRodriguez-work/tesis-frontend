@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import type { paths } from '@/api/types';
+import { useBranchStore } from '@/lib/branch-store';
 import { authKeys } from '@/lib/query-keys';
 import type { OnboardingInput } from '@/lib/schemas/auth';
 import type { AuthUser } from '@/types/auth';
@@ -82,26 +83,22 @@ export function useMe() {
 }
 
 export function useSignIn() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: { email: string; password: string }) => {
       const { data, error } = await api.POST('/api/auth/sign-in/email', { body });
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: authKeys.me() }),
   });
 }
 
 export function useSignUp() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: { email: string; password: string; name: string }) => {
       const { data, error } = await api.POST('/api/auth/sign-up/email', { body });
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: authKeys.me() }),
   });
 }
 
@@ -112,7 +109,10 @@ export function useSignOut() {
       const { error } = await api.POST('/api/v1/auth/sign-out');
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: authKeys.me() }),
+    onSuccess: () => {
+      qc.clear();
+      useBranchStore.getState().clear();
+    },
   });
 }
 

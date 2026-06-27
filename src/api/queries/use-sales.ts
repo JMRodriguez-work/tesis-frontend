@@ -117,6 +117,7 @@ export function useCreateSale() {
         qc.invalidateQueries({ queryKey: itemKeys.stock(item.itemId) });
         qc.invalidateQueries({ queryKey: stockKeys.byWarehouse(item.warehouseId, {}) });
       }
+      qc.invalidateQueries({ queryKey: itemKeys.stockLists() });
       qc.invalidateQueries({ queryKey: stockMovementKeys.lists() });
       qc.invalidateQueries({ queryKey: stockMovementKeys.lowStock({ branchId: data.branchId }) });
       if (data.customer?.id) {
@@ -151,6 +152,7 @@ export function useCancelSale() {
         qc.invalidateQueries({ queryKey: itemKeys.stock(item.itemId) });
         qc.invalidateQueries({ queryKey: stockKeys.byWarehouse(item.warehouseId, {}) });
       }
+      qc.invalidateQueries({ queryKey: itemKeys.stockLists() });
       qc.invalidateQueries({ queryKey: stockMovementKeys.lists() });
       qc.invalidateQueries({ queryKey: stockMovementKeys.lowStock({ branchId: data.branchId }) });
       if (data.customer?.id) {

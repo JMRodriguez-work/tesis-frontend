@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import type { paths } from '@/api/types';
-import { warehouseKeys } from '@/lib/query-keys';
+import { itemKeys, stockKeys, warehouseKeys } from '@/lib/query-keys';
 import type {
   AssignBranchInput,
   CreateWarehouseInput,
@@ -139,6 +139,46 @@ export function useUnassignWarehouseFromBranch() {
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: warehouseKeys.lists() });
       qc.invalidateQueries({ queryKey: warehouseKeys.detail(id) });
+    },
+  });
+}
+
+export type UpsertStockInput = {
+  itemId: string;
+  quantity: string;
+  minStock?: string;
+};
+
+type UpsertStockResponse = NonNullable<
+  paths['/api/v1/warehouses/{id}/stock']['post']['responses']['200']['content']['application/json']
+>;
+
+export function useUpsertStock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      warehouseId,
+      body,
+    }: {
+      warehouseId: string;
+      body: UpsertStockInput;
+    }): Promise<UpsertStockResponse['data']> => {
+      const apiBody = {
+        itemId: body.itemId,
+        quantity: body.quantity,
+        ...(body.minStock !== undefined ? { minStock: body.minStock } : {}),
+      } as UpsertStockInput;
+      const { data, error } = await api.POST('/api/v1/warehouses/{id}/stock', {
+        params: { path: { id: warehouseId } },
+        body: apiBody,
+      });
+      if (error || !data) throw error ?? new Error('Failed to upsert stock');
+      return data.data;
+    },
+    onSuccess: (_data, { warehouseId, body }) => {
+      qc.invalidateQueries({ queryKey: stockKeys.byWarehouse(warehouseId, {}) });
+      qc.invalidateQueries({ queryKey: itemKeys.stock(body.itemId) });
+      qc.invalidateQueries({ queryKey: itemKeys.stockLists() });
     },
   });
 }

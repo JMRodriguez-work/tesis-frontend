@@ -31,7 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { mapApiError } from '@/lib/api-error';
-import { formatCurrency, formatDate, formatDecimal } from '@/lib/format';
+import { formatCurrency, formatDate, formatDecimal, formatQuantity } from '@/lib/format';
 import { roleFromId } from '@/lib/role';
 import { cn } from '@/lib/utils';
 
@@ -275,17 +275,22 @@ function ItemDetailPage() {
             <tbody>
               {stock.map((row) => {
                 const unitAbbr = item.baseUnit?.abbreviation;
+                const unitType = (item.baseUnit?.unitType ?? null) as
+                  | 'count'
+                  | 'weight'
+                  | 'volume'
+                  | null;
                 return (
                   <tr key={row.warehouseId} className="border-b last:border-0">
                     <td className="py-2">{row.warehouseName}</td>
                     <td className="py-2">
-                      {formatDecimal(row.quantity)}
+                      {formatQuantity(row.quantity, unitType)}
                       {unitAbbr ? (
                         <span className="ml-1 text-muted-foreground">{unitAbbr}</span>
                       ) : null}
                     </td>
                     <td className="py-2">
-                      {formatDecimal(row.minStock)}
+                      {formatQuantity(row.minStock, unitType)}
                       {unitAbbr ? (
                         <span className="ml-1 text-muted-foreground">{unitAbbr}</span>
                       ) : null}

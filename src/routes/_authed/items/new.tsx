@@ -1,5 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeftIcon, BarcodeIcon, PlusIcon, WarningIcon } from '@phosphor-icons/react';
+import {
+  ArrowLeftIcon,
+  BarcodeIcon,
+  PackageIcon,
+  PlusIcon,
+  WarningIcon,
+} from '@phosphor-icons/react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { type Resolver, useForm } from 'react-hook-form';
@@ -8,6 +14,7 @@ import { useMe } from '@/api/queries/use-auth';
 import { type Category, useItemCategories } from '@/api/queries/use-item-categories';
 import { useCreateItem } from '@/api/queries/use-items';
 import { useUnits } from '@/api/queries/use-units';
+import { useUpsertStock, useWarehouses } from '@/api/queries/use-warehouses';
 import { CategoryCreateDialog } from '@/components/items/category-create-dialog';
 import { PricingWarning } from '@/components/items/pricing-warning';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -35,6 +42,7 @@ function NewItemPage() {
   const adminBranchId = role === 'Admin' ? (currentBranchId ?? undefined) : undefined;
 
   const createItem = useCreateItem();
+  const upsertStock = useUpsertStock();
   const { data: categories } = useItemCategories(
     {
       branchId: adminBranchId,
@@ -43,6 +51,7 @@ function NewItemPage() {
     { enabled: role !== 'Admin' || !!currentBranchId },
   );
   const { data: units } = useUnits();
+  const { data: warehouses } = useWarehouses({ isActive: true, limit: 100 });
 
   const categoryItems: ComboboxItem[] = useMemo(
     () => [
@@ -63,6 +72,15 @@ function NewItemPage() {
     [units],
   );
 
+  const warehouseItems: ComboboxItem[] = useMemo(
+    () => [
+      { label: '— Asignar después —', value: null },
+      ...(warehouses?.data.filter((w) => w.isActive).map((w) => ({ label: w.name, value: w.id })) ??
+        []),
+    ],
+    [warehouses],
+  );
+
   const [pricingWarning, setPricingWarning] = useState<{
     field: 'salePrice';
     message: string;
@@ -71,17 +89,17 @@ function NewItemPage() {
   } | null>(null);
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
 
-  type FormValues = {
-    name: string;
-    description?: string;
-    categoryId?: string;
-    baseUnitId?: number;
-    purchasePrice?: string;
-    salePrice?: string;
-    code?: string;
-    barcode?: string;
-    isActive: boolean;
+  type StockState = {
+    warehouseId: string | null;
+    quantity: string;
+    minStock: string;
   };
+
+  const [initialStock, setInitialStock] = useState<StockState>({
+    warehouseId: null,
+    quantity: '',
+    minStock: '',
+  });
 
   const {
     register,
@@ -89,8 +107,8 @@ function NewItemPage() {
     watch,
     setValue,
     formState: { errors },
-  } = useForm<FormValues>({
-    resolver: zodResolver(createItemSchema) as Resolver<FormValues>,
+  } = useForm<CreateItemInput>({
+    resolver: zodResolver(createItemSchema) as Resolver<CreateItemInput>,
     defaultValues: {
       name: '',
       description: '',
@@ -130,6 +148,40 @@ function NewItemPage() {
               salePrice: data.warning.salePrice,
               purchasePrice: data.warning.purchasePrice,
             });
+          }
+          const qty = initialStock.quantity.trim();
+          const wh = initialStock.warehouseId;
+          if (wh && qty && Number(qty) > 0) {
+            const minStock = initialStock.minStock.trim();
+            upsertStock.mutate(
+              {
+                warehouseId: wh,
+                body: {
+                  itemId: data.item.id,
+                  quantity: qty,
+                  ...(minStock && Number(minStock) >= 0 ? { minStock } : {}),
+                },
+              },
+              {
+                onSuccess: () => {
+                  toast.success('Item creado con stock inicial');
+                  void navigate({
+                    to: '/items/$itemId',
+                    params: { itemId: data.item.id },
+                  });
+                },
+                onError: (err) => {
+                  toast.error(
+                    `Item creado, pero falló el stock inicial: ${mapApiError(err).message}`,
+                  );
+                  void navigate({
+                    to: '/items/$itemId',
+                    params: { itemId: data.item.id },
+                  });
+                },
+              },
+            );
+            return;
           }
           toast.success('Item creado');
           void navigate({
@@ -271,6 +323,75 @@ function NewItemPage() {
             placeholder="Sin unidad"
           />
         </div>
+
+        {role !== 'Employee' ? (
+          <fieldset className="flex flex-col gap-3 rounded-md border border-dashed border-border p-3">
+            <legend className="flex items-center gap-1.5 px-1 text-xs font-medium">
+              <PackageIcon className="size-3.5" />
+              Stock inicial (opcional)
+            </legend>
+            <p className="text-xs text-muted-foreground">
+              Si asignás stock inicial, el item se crea con la cantidad indicada en el depósito.
+              Podés ajustarlo después.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <ComboboxField
+                id="initialWarehouseId"
+                label="Depósito"
+                items={warehouseItems}
+                value={initialStock.warehouseId}
+                onValueChange={(value) =>
+                  setInitialStock((prev) => ({ ...prev, warehouseId: value }))
+                }
+                placeholder={
+                  warehouses && warehouses.data.length > 0
+                    ? 'Seleccioná un depósito'
+                    : 'No hay depósitos activos'
+                }
+                className="sm:col-span-1"
+              />
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="initialQuantity">Cantidad</Label>
+                <Input
+                  id="initialQuantity"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.001"
+                  placeholder="0"
+                  value={initialStock.quantity}
+                  disabled={!initialStock.warehouseId}
+                  onChange={(e) =>
+                    setInitialStock((prev) => ({ ...prev, quantity: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="initialMinStock">Stock mínimo</Label>
+                <Input
+                  id="initialMinStock"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.001"
+                  placeholder="0"
+                  value={initialStock.minStock}
+                  disabled={!initialStock.warehouseId}
+                  onChange={(e) =>
+                    setInitialStock((prev) => ({ ...prev, minStock: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            {initialStock.warehouseId &&
+            initialStock.quantity &&
+            Number(initialStock.quantity) > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Se creará un movimiento de stock inicial en el depósito seleccionado.
+              </p>
+            ) : null}
+          </fieldset>
+        ) : null}
 
         <div className="flex items-center gap-2">
           <Checkbox

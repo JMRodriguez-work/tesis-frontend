@@ -7,12 +7,7 @@ import { useMe } from '@/api/queries/use-auth';
 import { useStockByWarehouse, type WarehouseStockRow } from '@/api/queries/use-stock';
 import { type StockMovementListItem, useStockMovements } from '@/api/queries/use-stock-movements';
 import { useWarehouse } from '@/api/queries/use-warehouses';
-import {
-  actionsColumn,
-  currencyColumn,
-  dateColumn,
-  textColumn,
-} from '@/components/data-table/column-defs';
+import { actionsColumn, dateColumn, textColumn } from '@/components/data-table/column-defs';
 import { DataTable } from '@/components/data-table/data-table';
 import { ErrorState } from '@/components/feedback/error-state';
 import { Skeleton } from '@/components/feedback/skeleton';
@@ -24,7 +19,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { ComboboxField, type ComboboxItem } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { useDebounce } from '@/hooks/use-debounce';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatQuantity } from '@/lib/format';
 import { roleFromId } from '@/lib/role';
 import { cn } from '@/lib/utils';
 
@@ -197,8 +192,26 @@ function WarehouseDetailPage() {
         accessorFn: (row) => row.itemCode,
         cell: ({ getValue }) => (getValue() as string | null) ?? '—',
       },
-      currencyColumn<WarehouseStockRow>('Cantidad', 'quantity'),
-      currencyColumn<WarehouseStockRow>('Mínimo', 'minStock'),
+      {
+        id: 'quantity',
+        header: 'Cantidad',
+        accessorFn: (row) => Number(row.quantity),
+        cell: ({ row }) => (
+          <span className="font-mono text-sm">
+            {formatQuantity(row.original.quantity, row.original.unitType ?? null)}
+          </span>
+        ),
+      },
+      {
+        id: 'minStock',
+        header: 'Mínimo',
+        accessorFn: (row) => Number(row.minStock),
+        cell: ({ row }) => (
+          <span className="font-mono text-sm text-muted-foreground">
+            {formatQuantity(row.original.minStock, row.original.unitType ?? null)}
+          </span>
+        ),
+      },
       {
         id: 'status',
         header: 'Estado',

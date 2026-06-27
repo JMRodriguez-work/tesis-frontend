@@ -1,75 +1,59 @@
-# React + TypeScript + Vite
+# TFG Frontend — Plataforma de inteligencia analítica para almacenes
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend del TFG "tesis-backend". Interfaz de usuario de la plataforma de
+inteligencia analítica para almacenes y despensas pequeñas de Argentina.
 
-Currently, two official plugins are available:
+> Estado del proyecto, fases completadas y backlog: ver [`TODO.md`](./TODO.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## Stack
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+- **React**
+- **Tanstack Router:**
+- **Tanstack Query:**
+- **Base UI:**
+- **Biome**
 
-Note: This will impact Vite dev & build performances.
+---
 
-## Expanding the ESLint configuration
+## Setup local
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 1. Prerequisitos
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- Node.js 20+ (recomendado usar [fnm](https://github.com/Schniz/fnm) o [nvm](https://github.com/Schniz/nvm))
+- [pnpm](https://pnpm.io/) (`npm install -g pnpm`)
+- El backend corriendo en `http://localhost:8787` (ver [`../tesis-backend/README.md`](../tesis-backend/README.md))
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 2. Clonar e instalar
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+git clone https://github.com/JMRodriguez-work/tesis-frontend.git
+cd tesis-frontend
+pnpm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 3. Configurar variables de entorno (opcional)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+El front tiene defaults sensatos para dev. Si querés apuntarlo a otro backend:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cp .env.example .env
+# Editar .env y setear VITE_API_URL si es necesario
 ```
+
+| Variable      | Default                   | Descripción                              |
+| ------------- | ------------------------- | ---------------------------------------- |
+| `VITE_API_URL` | `http://localhost:8787`  | URL del backend (Worker en dev)          |
+| `VITE_ENV`    | `development`             | `development` / `staging` / `production` |
+
+> Las variables `VITE_*` se embeben en el bundle en build time. Cambiarlas requiere reiniciar Vite.
+
+
+### 5. Arrancar el dev server
+
+```bash
+pnpm run dev
+```
+
+Abrir en el navegador `http://localhost:5173`.

@@ -19,6 +19,8 @@ export const itemKeys = {
   detail: (id: string) => [...itemKeys.details(), id] as const,
   barcode: (code: string) => [...itemKeys.all, 'barcode', code] as const,
   stock: (id: string) => [...itemKeys.all, 'stock', id] as const,
+  stockLists: () => [...itemKeys.all, 'stock-list'] as const,
+  stockList: (q: object) => [...itemKeys.stockLists(), q] as const,
 };
 
 export const itemCategoryKeys = {

@@ -45,6 +45,17 @@ export const listItemsQuerySchema = z.object({
 
 export type ListItemsQuery = z.infer<typeof listItemsQuerySchema>;
 
+export const listItemsWithStockQuerySchema = z.object({
+  page: z.number().int().min(1).default(1),
+  limit: z.number().int().min(1).max(100).default(20),
+  search: z.string().optional(),
+  status: z.enum(['out', 'low', 'ok']).nullable().optional(),
+  showInactive: z.boolean().optional().default(false),
+  branchId: z.string().uuid().optional(),
+});
+
+export type ListItemsWithStockQuery = z.infer<typeof listItemsWithStockQuerySchema>;
+
 export const updateMinStockSchema = z.object({
   minStock: priceStringSchema,
 });

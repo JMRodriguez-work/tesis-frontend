@@ -16,7 +16,7 @@ function LandingPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
             <ChartLineUpIcon className="size-5 text-primary" weight="duotone" />
-            <span className="text-sm font-semibold">TFG</span>
+            <span className="text-sm font-semibold">TFG - Martín Rodríguez</span>
           </div>
           <nav className="flex items-center gap-2">
             <Link to="/login" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
@@ -47,7 +47,7 @@ function LandingPage() {
         </div>
       </section>
 
-      <section className="mx-auto grid w-full max-w-5xl gap-4 px-6 pb-20 sm:grid-cols-3">
+      <section className="mx-auto grid w-full max-w-5xl flex-1 content-center gap-4 px-6 py-12 sm:grid-cols-3">
         <FeatureCard
           icon={<ShoppingCartIcon className="size-5" weight="duotone" />}
           title="Ventas"
@@ -67,7 +67,7 @@ function LandingPage() {
 
       <footer className="border-t border-border bg-card py-4">
         <div className="mx-auto max-w-5xl px-6 text-center text-xs text-muted-foreground">
-          TFG · Trabajo Final de Grado
+          Trabajo Final de Grado - Martín Rodríguez
         </div>
       </footer>
     </main>

@@ -149,6 +149,7 @@ export function useCreateAdjustment() {
       qc.invalidateQueries({ queryKey: stockMovementKeys.lists() });
       qc.invalidateQueries({ queryKey: stockKeys.byWarehouse(body.warehouseId, {}) });
       qc.invalidateQueries({ queryKey: itemKeys.stock(body.itemId) });
+      qc.invalidateQueries({ queryKey: itemKeys.stockLists() });
       qc.invalidateQueries({ queryKey: stockMovementKeys.lowStock({ branchId }) });
     },
   });
@@ -183,6 +184,7 @@ export function useTransferStock() {
       qc.invalidateQueries({ queryKey: stockKeys.byWarehouse(body.fromWarehouseId, {}) });
       qc.invalidateQueries({ queryKey: stockKeys.byWarehouse(body.toWarehouseId, {}) });
       qc.invalidateQueries({ queryKey: itemKeys.stock(body.itemId) });
+      qc.invalidateQueries({ queryKey: itemKeys.stockLists() });
       qc.invalidateQueries({ queryKey: stockMovementKeys.lowStock({ branchId }) });
     },
   });

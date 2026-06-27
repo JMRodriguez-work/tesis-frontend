@@ -39,6 +39,19 @@ type ItemStockResponse = NonNullable<
 >;
 export type ItemStock = ItemStockResponse['data'][number];
 
+type ItemsWithStockListResponse = NonNullable<
+  paths['/api/v1/items/stock']['get']['responses']['200']['content']['application/json']
+>;
+export type ItemWithStockRow = ItemsWithStockListResponse['data']['data'][number];
+export type ItemsWithStockList = {
+  data: ItemWithStockRow[];
+  meta: ItemsWithStockListResponse['data']['meta'];
+};
+
+export type ListItemsWithStockQuery = NonNullable<
+  paths['/api/v1/items/stock']['get']['parameters']['query']
+>;
+
 type MinStockResponse = NonNullable<
   paths['/api/v1/items/{id}/min-stock']['patch']['responses']['200']['content']['application/json']
 >;
@@ -105,6 +118,23 @@ export function useItemStock(id: string) {
       return data.data;
     },
     enabled: id.length > 0,
+  });
+}
+
+export function useItemsWithStock(
+  query: Partial<ListItemsWithStockQuery> = {},
+  options?: Pick<UseQueryOptions<ItemsWithStockList>, 'enabled'>,
+): ReturnType<typeof useQuery<ItemsWithStockList>> {
+  return useQuery<ItemsWithStockList>({
+    queryKey: itemKeys.stockList(query),
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/v1/items/stock', {
+        params: { query: query as ListItemsWithStockQuery },
+      });
+      if (error || !data) throw error ?? new Error('Failed to fetch items with stock');
+      return data.data;
+    },
+    ...options,
   });
 }
 
