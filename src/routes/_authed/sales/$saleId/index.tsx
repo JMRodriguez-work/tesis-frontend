@@ -93,8 +93,7 @@ function SaleDetailPage() {
         <Alert>
           <CheckCircleIcon weight="fill" />
           <AlertDescription className="text-xs">
-            Venta registrada. El stock fue descontado de los depósitos y se generaron movimientos
-            type=out.
+            Venta registrada. El stock fue descontado de los depósitos.
           </AlertDescription>
         </Alert>
       )}

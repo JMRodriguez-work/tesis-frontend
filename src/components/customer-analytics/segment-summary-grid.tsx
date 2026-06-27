@@ -25,9 +25,6 @@ function SegmentSummaryGrid({ customers }: SegmentSummaryGridProps) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-[10px] text-muted-foreground">
-        Conteos aproximados de la página actual (no del total de la organización).
-      </p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {SEGMENT_ORDER.map((segment) => {
           const config = SEGMENT_CONFIG[segment];
