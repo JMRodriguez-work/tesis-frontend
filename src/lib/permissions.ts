@@ -8,6 +8,7 @@ export type NavLinkKey =
   | 'segments'
   | 'warehouses'
   | 'stock-movements'
+  | 'low-stock'
   | 'providers'
   | 'provider-orders'
   | 'reports'
@@ -26,6 +27,7 @@ export const LINK_VISIBILITY: Record<NavLinkKey, readonly UserRole[]> = {
   segments: ['Admin', 'Manager', 'Employee'],
   warehouses: ['Admin', 'Manager', 'Employee'],
   'stock-movements': ['Admin', 'Manager', 'Employee'],
+  'low-stock': ['Admin', 'Manager'],
   providers: ['Admin', 'Manager', 'Employee'],
   'provider-orders': ['Admin', 'Manager', 'Employee'],
   reports: ['Admin', 'Manager', 'Employee'],

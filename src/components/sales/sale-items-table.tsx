@@ -11,6 +11,7 @@ import {
 import { type ItemListRow, useItems } from '@/api/queries/use-items';
 import { useUnits } from '@/api/queries/use-units';
 import { useWarehouses } from '@/api/queries/use-warehouses';
+import { SaleItemStockHint } from '@/components/sales/sale-item-stock-hint';
 import { Button } from '@/components/ui/button';
 import { ComboboxField, type ComboboxItem } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
@@ -156,6 +157,15 @@ function SaleItemsTable({
                         itemsData={itemsData?.data ?? []}
                         error={rowError?.itemId?.message}
                       />
+                      {watchedRow ? (
+                        <div className="mt-1">
+                          <SaleItemStockHint
+                            itemId={watchedRow.itemId ?? ''}
+                            warehouseId={watchedRow.warehouseId ?? ''}
+                            quantity={watchedRow.quantity ?? ''}
+                          />
+                        </div>
+                      ) : null}
                     </td>
                     <td className="p-2">
                       <Input

@@ -1,9 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeftIcon, WarningIcon } from '@phosphor-icons/react';
+import { ArrowLeftIcon, InfoIcon, WarningIcon } from '@phosphor-icons/react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import { z } from 'zod';
 import { useMe } from '@/api/queries/use-auth';
 import { useCreateProviderOrder } from '@/api/queries/use-provider-orders';
 import { useProviders } from '@/api/queries/use-providers';
@@ -23,7 +24,16 @@ import {
 } from '@/lib/schemas/provider-order';
 import { cn } from '@/lib/utils';
 
+const newProviderOrderSearchSchema = z.object({
+  itemId: z.string().uuid().optional(),
+  quantity: z
+    .union([z.string(), z.number()])
+    .transform((value) => String(value))
+    .optional(),
+});
+
 const Route = createFileRoute('/_authed/provider-orders/new')({
+  validateSearch: newProviderOrderSearchSchema,
   component: NewProviderOrderPage,
 });
 
@@ -31,6 +41,7 @@ const EMPTY_ITEM = { itemId: '', quantity: '', cost: '', unitId: undefined };
 
 function NewProviderOrderPage() {
   const navigate = useNavigate();
+  const { itemId: prefillItemId, quantity: prefillQuantity } = Route.useSearch();
   const { data: me } = useMe();
   const role = roleFromId(me?.roleId ?? null);
   const currentBranchId = useCurrentBranchId();
@@ -50,7 +61,9 @@ function NewProviderOrderPage() {
     defaultValues: {
       providerId: '',
       estimatedDelivery: '',
-      items: [EMPTY_ITEM],
+      items: prefillItemId
+        ? [{ itemId: prefillItemId, quantity: prefillQuantity ?? '', cost: '', unitId: undefined }]
+        : [EMPTY_ITEM],
     },
   });
 
@@ -118,6 +131,16 @@ function NewProviderOrderPage() {
               Seleccioná una sucursal activa en el selector del topbar para crear la orden.
             </AlertDescription>
           </div>
+        </Alert>
+      ) : null}
+
+      {prefillItemId ? (
+        <Alert>
+          <InfoIcon className="size-4" weight="regular" />
+          <AlertDescription className="text-xs">
+            Orden iniciada desde una recomendación de restock: el ítem y la cantidad sugerida ya
+            están cargados. Revisá el costo y el proveedor antes de crear.
+          </AlertDescription>
         </Alert>
       ) : null}
 

@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, PencilSimpleIcon, WarningIcon } from '@phosphor-icons/react';
+import { ArrowLeftIcon, PencilSimpleIcon, TruckIcon, WarningIcon } from '@phosphor-icons/react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useMe } from '@/api/queries/use-auth';
 import { useLowStockItems } from '@/api/queries/use-stock-movements';
@@ -117,19 +117,34 @@ function LowStockPage() {
                   </td>
                   {canWrite ? (
                     <td className="p-3 text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          void navigate({
-                            to: '/stock-movements/new-adjustment',
-                            search: { itemId: row.itemId, warehouseId: row.warehouseId },
-                          })
-                        }
-                      >
-                        <PencilSimpleIcon className="size-3.5" />
-                        Ajustar
-                      </Button>
+                      <div className="flex justify-end gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            void navigate({
+                              to: '/provider-orders/new',
+                              search: { itemId: row.itemId, quantity: row.deficit },
+                            })
+                          }
+                        >
+                          <TruckIcon className="size-3.5" />
+                          Orden
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            void navigate({
+                              to: '/stock-movements/new-adjustment',
+                              search: { itemId: row.itemId, warehouseId: row.warehouseId },
+                            })
+                          }
+                        >
+                          <PencilSimpleIcon className="size-3.5" />
+                          Ajustar
+                        </Button>
+                      </div>
                     </td>
                   ) : null}
                 </tr>

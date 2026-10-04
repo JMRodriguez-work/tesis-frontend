@@ -241,7 +241,8 @@ function NewSalePage() {
         <Alert>
           <InfoIcon className="size-4" weight="regular" />
           <AlertDescription className="text-xs">
-            La venta descuenta stock de los depósitos indicados. El cliente puede ser Consumidor final.
+            La venta descuenta stock de los depósitos indicados. El cliente puede ser Consumidor
+            final.
           </AlertDescription>
         </Alert>
 

@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/feedback/skeleton';
 import { RecommendationPriorityBadge } from '@/components/recommendations/recommendation-priority-badge';
 import { RecommendationStatusBadge } from '@/components/recommendations/recommendation-status-badge';
 import { RecommendationTypeBadge } from '@/components/recommendations/recommendation-type-badge';
+import { RestockOrderAction } from '@/components/recommendations/restock-order-action';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -91,6 +92,13 @@ function RecommendationDetailDialog({
             <p className="text-xs text-foreground whitespace-pre-wrap">
               {recommendation.description}
             </p>
+
+            <RestockOrderAction
+              type={recommendation.type}
+              itemId={recommendation.item?.id ?? null}
+              disabled={updateStatus.isPending}
+              onApply={() => handleUpdate('applied')}
+            />
 
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
               <dt className="text-muted-foreground">Sucursal</dt>

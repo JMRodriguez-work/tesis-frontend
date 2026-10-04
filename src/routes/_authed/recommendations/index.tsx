@@ -23,8 +23,6 @@ import { listRecommendationsQuerySchema } from '@/lib/schemas/recommendation';
 const TYPE_ITEMS: ComboboxItem[] = [
   { label: 'Todos los tipos', value: null },
   { label: 'Restock', value: 'restock' },
-  { label: 'Precio', value: 'pricing' },
-  { label: 'Tendencia', value: 'trend' },
   { label: 'Estacional', value: 'seasonal' },
   { label: 'Retención', value: 'retention' },
 ];
