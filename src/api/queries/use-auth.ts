@@ -69,8 +69,10 @@ declare module '@/api/types' {
 }
 
 export async function fetchMe(): Promise<AuthUser | null> {
-  const { data, error } = await api.GET('/api/v1/auth/me');
-  if (error || !data) return null;
+  const { data, error, response } = await api.GET('/api/v1/auth/me');
+  if (response.status === 401) return null;
+  if (error) throw error;
+  if (!data) throw new Error('La respuesta de autenticación no contiene datos');
   return data.data as AuthUser;
 }
 
@@ -83,11 +85,15 @@ export function useMe() {
 }
 
 export function useSignIn() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: { email: string; password: string }) => {
       const { data, error } = await api.POST('/api/auth/sign-in/email', { body });
       if (error) throw error;
       return data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: authKeys.me() });
     },
   });
 }
