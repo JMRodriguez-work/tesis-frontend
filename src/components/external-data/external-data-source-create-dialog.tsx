@@ -144,9 +144,8 @@ function ExternalDataSourceCreateDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>Tipo *</Label>
             <ComboboxField
-              label="Tipo"
+              label="Tipo *"
               items={typeItems}
               value={typeValue}
               onValueChange={(v) => {
