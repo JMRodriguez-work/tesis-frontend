@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatPeriodEs, monthNameEs } from '@/lib/format';
 
 type ExternalDataViewDialogProps = {
   open: boolean;
@@ -15,7 +15,7 @@ type ExternalDataViewDialogProps = {
   source: ExternalDataSource | null;
 };
 
-type IpcPayload = {
+type WholesalePricePayload = {
   source?: string;
   latest?: { period?: string; value?: number | string };
   latestChange?: number | string;
@@ -25,6 +25,17 @@ type IpcPayload = {
 type SeasonalityPayload = {
   peaks?: { month?: string; category?: string; intensity?: number | string }[];
 };
+
+const indexLevelFormatter = new Intl.NumberFormat('es-AR', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+});
+
+function formatIndexLevel(value: number | string | null | undefined): string {
+  if (value === null || value === undefined) return '—';
+  const num = typeof value === 'string' ? Number(value) : value;
+  return Number.isNaN(num) ? '—' : indexLevelFormatter.format(num);
+}
 
 function ExternalDataViewDialog({ open, onOpenChange, source }: ExternalDataViewDialogProps) {
   const { data: detail, isLoading, error } = useExternalDataSource(source?.id ?? '');
@@ -64,7 +75,7 @@ function ExternalDataViewDialog({ open, onOpenChange, source }: ExternalDataView
         ) : !payload ? (
           <p className="text-xs text-muted-foreground">Sin datos registrados todavía.</p>
         ) : detail.type === 'wholesale_prices' ? (
-          <IpcDataView payload={payload as IpcPayload} />
+          <WholesalePriceDataView payload={payload as WholesalePricePayload} />
         ) : detail.type === 'seasonality' ? (
           <SeasonalityView payload={payload as SeasonalityPayload} />
         ) : (
@@ -77,17 +88,18 @@ function ExternalDataViewDialog({ open, onOpenChange, source }: ExternalDataView
   );
 }
 
-function IpcDataView({ payload }: { payload: IpcPayload }) {
+function WholesalePriceDataView({ payload }: { payload: WholesalePricePayload }) {
   const change = payload.latestChange;
   const changeNum = typeof change === 'string' ? Number(change) : change;
+  const periodEs = payload.latest?.period ? formatPeriodEs(payload.latest.period) : null;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline gap-4 rounded-none border border-border bg-slate-50 p-3">
         <div>
           <p className="font-mono text-[11px] text-muted-foreground">
-            ÚLTIMO PERÍODO {payload.latest?.period ? `· ${payload.latest.period}` : ''}
+            ÚLTIMO PERÍODO {periodEs ? `· ${periodEs}` : ''}
           </p>
-          <p className="text-lg font-semibold">{payload.latest?.value ?? '—'}</p>
+          <p className="text-lg font-semibold">{formatIndexLevel(payload.latest?.value)}</p>
         </div>
         <div className="ml-auto text-right">
           <p className="font-mono text-[11px] text-muted-foreground">VAR. MENSUAL</p>
@@ -104,8 +116,17 @@ function IpcDataView({ payload }: { payload: IpcPayload }) {
           </p>
         </div>
       </div>
+      <div className="rounded-none border border-border bg-slate-50 p-3">
+        <p className="text-xs font-medium">Qué significa este dato</p>
+        <p className="text-xs text-muted-foreground">
+          El número de la izquierda es el nivel del índice (no es un precio). El de la derecha es
+          cuánto variaron los precios al por mayor en el último mes medido: si ese porcentaje sube
+          varios meses seguidos, tu costo de reposición sube — conviene reponer antes y revisar el
+          precio de venta.
+        </p>
+      </div>
       <p className="font-mono text-[11px] text-muted-foreground">
-        {payload.source ?? 'Fuente'} · serie índice, base dic-2016 = 100
+        {payload.source ?? 'Fuente'} · serie mensual del INDEC, nivel general, base dic-2015 = 100
       </p>
       {payload.series && payload.series.length > 0 ? (
         <div className="rounded-none border border-border">
@@ -119,8 +140,10 @@ function IpcDataView({ payload }: { payload: IpcPayload }) {
             <tbody>
               {payload.series.slice(-6).map((point) => (
                 <tr key={point.period} className="border-b last:border-0">
-                  <td className="p-2 font-mono">{point.period}</td>
-                  <td className="p-2 text-right font-mono">{point.value}</td>
+                  <td className="p-2 font-mono">
+                    {point.period ? formatPeriodEs(point.period) : '—'}
+                  </td>
+                  <td className="p-2 text-right font-mono">{formatIndexLevel(point.value)}</td>
                 </tr>
               ))}
             </tbody>
@@ -129,7 +152,7 @@ function IpcDataView({ payload }: { payload: IpcPayload }) {
       ) : null}
       <p className="text-xs text-muted-foreground">
         Este contexto alimenta la prioridad y la justificación de las recomendaciones de
-        reabastecimiento.
+        reposición, y aparece como banner al crear una orden a proveedor.
       </p>
     </div>
   );
@@ -154,7 +177,9 @@ function SeasonalityView({ payload }: { payload: SeasonalityPayload }) {
           <tbody>
             {peaks.map((peak) => (
               <tr key={`${peak.month}-${peak.category}`} className="border-b last:border-0">
-                <td className="p-2 font-mono">{peak.month}</td>
+                <td className="p-2 font-mono">
+                  {peak.month ? monthNameEs(Number(peak.month)) : '—'}
+                </td>
                 <td className="p-2">{peak.category}</td>
                 <td className="p-2 text-right font-mono">
                   {typeof peak.intensity === 'number'
@@ -167,7 +192,8 @@ function SeasonalityView({ payload }: { payload: SeasonalityPayload }) {
         </table>
       </div>
       <p className="text-xs text-muted-foreground">
-        Los picos del mes en curso generan recomendaciones estacionales por producto.
+        Los picos del mes en curso y del mes próximo generan recomendaciones estacionales por
+        producto, para asegurar stock antes de que llegue el pico.
       </p>
     </div>
   );

@@ -9,6 +9,7 @@ import { useMe } from '@/api/queries/use-auth';
 import { useCreateProviderOrder } from '@/api/queries/use-provider-orders';
 import { useProviders } from '@/api/queries/use-providers';
 import { ProviderOrderItemsTable } from '@/components/provider-orders/provider-order-items-table';
+import { WholesalePriceContext } from '@/components/provider-orders/wholesale-price-context';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { ComboboxField, type ComboboxItem } from '@/components/ui/combobox';
@@ -47,6 +48,7 @@ function NewProviderOrderPage() {
   const currentBranchId = useCurrentBranchId();
   const adminBranchId = role === 'Admin' ? (currentBranchId ?? undefined) : undefined;
   const showBranchWarning = role === 'Admin' && !currentBranchId;
+  const canFetchExternalData = role === 'Admin' || role === 'Manager';
 
   const { data: providers } = useProviders({ limit: 100, showInactive: false });
   const createOrder = useCreateProviderOrder();
@@ -143,6 +145,8 @@ function NewProviderOrderPage() {
           </AlertDescription>
         </Alert>
       ) : null}
+
+      {canFetchExternalData ? <WholesalePriceContext /> : null}
 
       <form
         onSubmit={handleSubmit(onSubmit)}

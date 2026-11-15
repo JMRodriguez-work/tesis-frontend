@@ -1,6 +1,7 @@
 import { Combobox } from '@base-ui/react/combobox';
 import { CaretDownIcon, CheckIcon, XIcon } from '@phosphor-icons/react';
 import * as React from 'react';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 export type ComboboxItem = {
@@ -40,9 +41,9 @@ function ComboboxField({
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
       {label ? (
-        <label htmlFor={fieldId} className="text-xs font-medium">
+        <Label htmlFor={fieldId}>
           {label}
-        </label>
+        </Label>
       ) : null}
       <Combobox.Root
         items={items}
@@ -54,7 +55,7 @@ function ComboboxField({
           id={fieldId}
           data-slot="combobox-trigger"
           className={cn(
-            "flex w-full items-center justify-between gap-1.5 rounded-none border border-input bg-transparent py-2 pr-2 pl-2.5 text-xs whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+            "flex h-8 w-full items-center justify-between gap-1.5 rounded-none border border-input bg-transparent py-1 pr-2 pl-2.5 text-xs whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
             triggerClassName,
           )}
         >
