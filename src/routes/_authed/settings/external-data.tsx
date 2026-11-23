@@ -115,9 +115,8 @@ function ExternalDataPage() {
   const handleFetchNow = useCallback(
     (source: ExternalDataSource) => {
       enqueueFetch.mutate(source.id, {
-        onSuccess: (data) => {
-          const shortId = data.jobId.slice(0, 8);
-          toast.success(`Job encolado (${shortId}…). Los resultados aparecerán al refrescar.`);
+        onSuccess: () => {
+          toast.success(`Procesando... Los resultados aparecerán en unos momentos.`);
         },
         onError: (err) => toast.error(mapApiError(err).message),
       });
