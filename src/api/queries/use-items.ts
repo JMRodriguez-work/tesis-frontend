@@ -121,6 +121,32 @@ export function useItemStock(id: string) {
   });
 }
 
+export type ItemOrderSuggestions = NonNullable<
+  paths['/api/v1/items/{id}/order-suggestions']['get']['responses']['200']['content']['application/json']
+>['data'];
+
+export type ItemCostSuggestion = NonNullable<ItemOrderSuggestions['costSuggestion']>;
+
+/**
+ * Sugerencias para armar una orden de reposición: demanda semanal estimada
+ * y costo ajustado por la variación del índice mayorista del INDEC desde la
+ * última compra. Si el item no tiene sugerencias (nunca se compró y no tiene
+ * precio de ficha), `costSuggestion` viene null y el caller no muestra hint.
+ */
+export function useItemOrderSuggestions(id: string) {
+  return useQuery({
+    queryKey: itemKeys.orderSuggestions(id),
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/v1/items/{id}/order-suggestions', {
+        params: { path: { id } },
+      });
+      if (error || !data) throw error ?? new Error('Failed to fetch order suggestions');
+      return data.data;
+    },
+    enabled: id.length > 0,
+  });
+}
+
 export function useItemsWithStock(
   query: Partial<ListItemsWithStockQuery> = {},
   options?: Pick<UseQueryOptions<ItemsWithStockList>, 'enabled'>,

@@ -1,10 +1,3 @@
-import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeftIcon, InfoIcon, WarningIcon } from '@phosphor-icons/react';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useMemo } from 'react';
-import { Controller, useFieldArray, useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import { z } from 'zod';
 import { useMe } from '@/api/queries/use-auth';
 import { useCreateProviderOrder } from '@/api/queries/use-provider-orders';
 import { useProviders } from '@/api/queries/use-providers';
@@ -24,6 +17,13 @@ import {
   createProviderOrderSchema,
 } from '@/lib/schemas/provider-order';
 import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { ArrowLeftIcon, WarningIcon } from '@phosphor-icons/react';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { useMemo } from 'react';
+import { Controller, useFieldArray, useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import { z } from 'zod';
 
 const newProviderOrderSearchSchema = z.object({
   itemId: z.string().uuid().optional(),
@@ -57,6 +57,7 @@ function NewProviderOrderPage() {
     control,
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateProviderOrderFormValues>({
     resolver: zodResolver(createProviderOrderSchema),
@@ -136,15 +137,6 @@ function NewProviderOrderPage() {
         </Alert>
       ) : null}
 
-      {prefillItemId ? (
-        <Alert>
-          <InfoIcon className="size-4" weight="regular" />
-          <AlertDescription className="text-xs">
-            Orden iniciada desde una recomendación de restock: el ítem y la cantidad sugerida ya
-            están cargados. Revisá el costo y el proveedor antes de crear.
-          </AlertDescription>
-        </Alert>
-      ) : null}
 
       {canFetchExternalData ? <WholesalePriceContext /> : null}
 
@@ -185,6 +177,11 @@ function NewProviderOrderPage() {
           branchId={adminBranchId ?? me?.branchId ?? undefined}
           onAppend={() => append({ itemId: '', quantity: '', cost: '' })}
           onRemove={(index) => remove(index)}
+          onApplyCost={(index, cost) =>
+            setValue(`items.${index}.cost` as const, cost.toFixed(2), {
+              shouldValidate: true,
+            })
+          }
         />
 
         <div className="flex justify-end gap-2">

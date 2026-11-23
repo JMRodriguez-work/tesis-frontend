@@ -1,9 +1,3 @@
-import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeftIcon, BarcodeIcon, InfoIcon, WarningIcon } from '@phosphor-icons/react';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useMemo } from 'react';
-import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
-import { toast } from 'sonner';
 import { useMe } from '@/api/queries/use-auth';
 import { useCustomers } from '@/api/queries/use-customers';
 import { useCreateSale } from '@/api/queries/use-sales';
@@ -24,6 +18,12 @@ import {
   createSaleSchema,
 } from '@/lib/schemas/sale';
 import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { ArrowLeftIcon, BarcodeIcon, WarningIcon } from '@phosphor-icons/react';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { useMemo } from 'react';
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
+import { toast } from 'sonner';
 
 const EMPTY_ITEM = {
   itemId: '',
@@ -238,13 +238,6 @@ function NewSalePage() {
           </div>
         </div>
 
-        <Alert>
-          <InfoIcon className="size-4" weight="regular" />
-          <AlertDescription className="text-xs">
-            La venta descuenta stock de los depósitos indicados. El cliente puede ser Consumidor
-            final.
-          </AlertDescription>
-        </Alert>
 
         <div className="flex justify-end gap-2">
           <Link to="/sales" className={cn(buttonVariants({ variant: 'outline' }))}>

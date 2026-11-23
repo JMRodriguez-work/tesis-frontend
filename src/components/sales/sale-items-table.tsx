@@ -124,11 +124,11 @@ function SaleItemsTable({
           <table className="w-full text-xs">
             <thead className="border-b bg-slate-50 text-left text-muted-foreground">
               <tr>
+                <th className="p-2 font-medium">Depósito</th>
                 <th className="p-2 font-medium">Item</th>
                 <th className="p-2 font-medium">Cantidad</th>
                 <th className="p-2 font-medium">Precio</th>
                 <th className="p-2 font-medium">Unidad</th>
-                <th className="p-2 font-medium">Depósito</th>
                 <th className="p-2 font-medium text-right">Subtotal</th>
                 <th className="p-2" />
               </tr>
@@ -148,6 +148,30 @@ function SaleItemsTable({
                   : undefined;
                 return (
                   <tr key={row.id} className={cn('border-b last:border-0 items-center align-top')}>
+                    <td className="p-2 min-w-44">
+                      <Controller
+                        control={control}
+                        name={`items.${index}.warehouseId` as const}
+                        render={({ field }) => (
+                          <ComboboxField
+                            id={`items.${index}.warehouseId`}
+                            label=""
+                            items={warehouseOptions}
+                            value={field.value || null}
+                            onValueChange={(value) => field.onChange(value ?? '')}
+                            placeholder={
+                              filteredWarehouses.length === 0 ? 'Sin depósitos' : 'Seleccionar'
+                            }
+                            className="min-w-44"
+                          />
+                        )}
+                      />
+                      {rowError?.warehouseId ? (
+                        <p className="mt-1 text-xs text-destructive">
+                          {rowError.warehouseId.message}
+                        </p>
+                      ) : null}
+                    </td>
                     <td className="p-2 min-w-48">
                       <ItemCombobox
                         control={control}
@@ -171,7 +195,7 @@ function SaleItemsTable({
                       <Input
                         id={`items.${index}.quantity`}
                         inputMode="decimal"
-                        placeholder="0.000"
+                        placeholder="0"
                         {...control.register(`items.${index}.quantity` as const)}
                       />
                       {rowError?.quantity ? (
@@ -212,30 +236,7 @@ function SaleItemsTable({
                         )}
                       />
                     </td>
-                    <td className="p-2 min-w-44">
-                      <Controller
-                        control={control}
-                        name={`items.${index}.warehouseId` as const}
-                        render={({ field }) => (
-                          <ComboboxField
-                            id={`items.${index}.warehouseId`}
-                            label=""
-                            items={warehouseOptions}
-                            value={field.value || null}
-                            onValueChange={(value) => field.onChange(value ?? '')}
-                            placeholder={
-                              filteredWarehouses.length === 0 ? 'Sin depósitos' : 'Seleccionar'
-                            }
-                            className="min-w-44"
-                          />
-                        )}
-                      />
-                      {rowError?.warehouseId ? (
-                        <p className="mt-1 text-xs text-destructive">
-                          {rowError.warehouseId.message}
-                        </p>
-                      ) : null}
-                    </td>
+                    
                     <td className="p-2 text-right font-mono whitespace-nowrap">
                       {lineSubtotal > 0 ? formatCurrency(lineSubtotal) : '—'}
                     </td>

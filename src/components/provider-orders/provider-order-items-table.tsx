@@ -9,6 +9,7 @@ import {
 } from 'react-hook-form';
 import { useItems } from '@/api/queries/use-items';
 import { useUnits } from '@/api/queries/use-units';
+import { CostSuggestionHint } from '@/components/provider-orders/cost-suggestion-hint';
 import { Button } from '@/components/ui/button';
 import { ComboboxField, type ComboboxItem } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
@@ -30,6 +31,8 @@ type ProviderOrderItemsTableProps = {
   branchId?: string;
   onAppend: () => void;
   onRemove: (index: number) => void;
+  /** Aplica el costo sugerido del backend al input de la fila (setValue desde el form). */
+  onApplyCost: (index: number, cost: number) => void;
 };
 
 function ProviderOrderItemsTable({
@@ -39,6 +42,7 @@ function ProviderOrderItemsTable({
   branchId,
   onAppend,
   onRemove,
+  onApplyCost,
 }: ProviderOrderItemsTableProps) {
   const { data: units } = useUnits();
   const { data: itemsData } = useItems(
@@ -163,6 +167,11 @@ function ProviderOrderItemsTable({
                       {rowError?.cost ? (
                         <p className="mt-1 text-xs text-destructive">{rowError.cost.message}</p>
                       ) : null}
+                      <CostSuggestionHint
+                        itemId={watchedRow?.itemId ?? ''}
+                        currentCost={watchedRow?.cost ?? ''}
+                        onApply={(cost) => onApplyCost(index, cost)}
+                      />
                     </td>
                     <td className="p-2">
                       <Controller
