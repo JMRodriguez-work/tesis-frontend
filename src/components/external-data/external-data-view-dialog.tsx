@@ -7,7 +7,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { formatDate, formatPeriodEs, monthNameEs } from '@/lib/format';
+import {
+  formatDate,
+  formatPeriodEs,
+  indecFreshnessNote,
+  monthNameEs,
+} from '@/lib/format';
 
 type ExternalDataViewDialogProps = {
   open: boolean;
@@ -128,6 +133,11 @@ function WholesalePriceDataView({ payload }: { payload: WholesalePricePayload })
       <p className="font-mono text-[11px] text-muted-foreground">
         {payload.source ?? 'Fuente'} · serie mensual del INDEC, nivel general, base dic-2015 = 100
       </p>
+      {indecFreshnessNote(payload.latest?.period) ? (
+        <p className="text-xs text-muted-foreground">
+          {indecFreshnessNote(payload.latest?.period)}
+        </p>
+      ) : null}
       {payload.series && payload.series.length > 0 ? (
         <div className="rounded-none border border-border">
           <table className="w-full text-xs">

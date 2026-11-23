@@ -23,6 +23,7 @@ import { ComboboxField, type ComboboxItem } from '@/components/ui/combobox';
 import { useCurrentBranchId } from '@/hooks/use-branch';
 import { roleFromId } from '@/lib/role';
 import { listStockMovementsQuerySchema } from '@/lib/schemas/stock-movement';
+import { formatQuantity } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 const TYPE_ITEMS: ComboboxItem[] = [
@@ -114,7 +115,6 @@ function StockMovementsPage() {
         header: 'Cantidad',
         accessorFn: (row) => row.quantity,
         cell: ({ row }) => {
-          const q = Number(row.original.quantity);
           const sign = row.original.type === 'in' ? '+' : row.original.type === 'out' ? '-' : '±';
           const color =
             row.original.type === 'in'
@@ -125,7 +125,10 @@ function StockMovementsPage() {
           return (
             <span className={cn('font-mono', color)}>
               {sign}
-              {Number.isNaN(q) ? row.original.quantity : q.toString()}
+              {formatQuantity(row.original.quantity, row.original.unitType ?? null)}
+              {row.original.unitAbbreviation ? (
+                <span className="ml-1 text-muted-foreground">{row.original.unitAbbreviation}</span>
+              ) : null}
             </span>
           );
         },

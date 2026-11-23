@@ -16,7 +16,7 @@ import { ProviderOrderReceiveDialog } from '@/components/provider-orders/provide
 import { ProviderOrderStatusBadge } from '@/components/provider-orders/provider-order-status-badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { formatCurrency, formatDate } from '@/lib/format';
+import { formatCurrency, formatDate, formatQuantity } from '@/lib/format';
 import { roleFromId } from '@/lib/role';
 import { cn } from '@/lib/utils';
 
@@ -176,7 +176,12 @@ function ProviderOrderDetailPage() {
                     </Link>
                   </td>
                   <td className="p-2 text-muted-foreground">{item.itemCode ?? '—'}</td>
-                  <td className="p-2 text-right font-mono">{item.quantity}</td>
+                  <td className="p-2 text-right font-mono">
+                    {formatQuantity(item.quantity, item.unitType ?? null)}
+                    {item.unitAbbreviation ? (
+                      <span className="ml-1 text-muted-foreground">{item.unitAbbreviation}</span>
+                    ) : null}
+                  </td>
                   <td className="p-2 text-right font-mono">{formatCurrency(item.cost)}</td>
                   <td className="p-2 text-right font-mono">{formatCurrency(item.lineTotal)}</td>
                 </tr>

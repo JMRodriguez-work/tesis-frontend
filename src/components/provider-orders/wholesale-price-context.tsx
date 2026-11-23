@@ -8,6 +8,17 @@ type WholesalePricePayload = {
   latestChange?: number | string | null;
 };
 
+/**
+ * Contexto de precios mayoristas (fuente INDEC IPIM) para la pantalla de
+ * compra. Igual que el backend al enricher recomendaciones: si la fuente
+ * todavía no tiene datos, falló la consulta o el usuario no puede leerla,
+ * el banner simplemente no se muestra — la compra nunca se bloquea por el
+ * dato externo.
+ *
+ * Copys en lenguaje de negocio a propósito: fechas de publicación y ventanas
+ * del índice viven en Configuración → Datos externos ("Ver datos"), la vista
+ * técnica. Acá el usuario solo necesita el número y qué hacer con él.
+ */
 function WholesalePriceContext() {
   const { data } = useExternalDataSources({ limit: 1, type: 'wholesale_prices' });
 
@@ -29,13 +40,11 @@ function WholesalePriceContext() {
       <TrendUpIcon />
       <div className="flex-1">
         <AlertTitle>
-          Contexto de precios mayoristas: {sign}
-          {changeNum.toFixed(1)}%
+          Precios mayoristas: {sign}
+          {changeNum.toFixed(1)}% el último mes medido
         </AlertTitle>
         <AlertDescription>
-          Variación mensual de los precios al por mayor según el INDEC. Si el porcentaje
-          sigue subiendo, lo que repongas hoy te cuesta menos que mañana: definí el costo
-          de la orden con eso en cuenta.
+          Si la variación sigue subiendo, lo que repongas hoy te cuesta menos que mañana.
         </AlertDescription>
       </div>
     </Alert>

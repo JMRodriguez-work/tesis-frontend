@@ -125,7 +125,7 @@ function ProviderOrderItemsTable({
                   ? itemsArrayError[index]
                   : undefined;
                 return (
-                  <tr key={row.id} className="border-b last:border-0 items-center">
+                  <tr key={row.id} className="border-b last:border-0 align-top">
                     <td className="p-2">
                       <Controller
                         control={control}
@@ -158,20 +158,27 @@ function ProviderOrderItemsTable({
                       ) : null}
                     </td>
                     <td className="p-2">
-                      <Input
-                        id={`items.${index}.cost`}
-                        inputMode="decimal"
-                        placeholder="0.00"
-                        {...control.register(`items.${index}.cost` as const)}
-                      />
-                      {rowError?.cost ? (
-                        <p className="mt-1 text-xs text-destructive">{rowError.cost.message}</p>
-                      ) : null}
-                      <CostSuggestionHint
-                        itemId={watchedRow?.itemId ?? ''}
-                        currentCost={watchedRow?.cost ?? ''}
-                        onApply={(cost) => onApplyCost(index, cost)}
-                      />
+                      <div className="flex flex-col gap-1">
+                        <Input
+                          id={`items.${index}.cost`}
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          {...control.register(`items.${index}.cost` as const)}
+                        />
+                        {/* Slot de altura fija: absorbe el error de validación y/o
+                            el costo sugerido sin desalinear las filas del resto
+                            de la tabla. */}
+                        <div className="min-h-5">
+                          {rowError?.cost ? (
+                            <p className="text-xs text-destructive">{rowError.cost.message}</p>
+                          ) : null}
+                          <CostSuggestionHint
+                            itemId={watchedRow?.itemId ?? ''}
+                            currentCost={watchedRow?.cost ?? ''}
+                            onApply={(cost) => onApplyCost(index, cost)}
+                          />
+                        </div>
+                      </div>
                     </td>
                     <td className="p-2">
                       <Controller

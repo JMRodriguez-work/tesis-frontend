@@ -4,7 +4,7 @@ import {
   useItemOrderSuggestions,
 } from '@/api/queries/use-items';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { formatCurrency, formatDate, formatPeriodEs } from '@/lib/format';
+import { formatCurrency, formatDate } from '@/lib/format';
 
 type CostSuggestionHintProps = {
   itemId: string;
@@ -13,35 +13,43 @@ type CostSuggestionHintProps = {
   onApply: (cost: number) => void;
 };
 
-function buildExplanation(suggestion: ItemCostSuggestion): string {
-  const suggested = formatCurrency(suggestion.suggestedCost);
+type SuggestionRow = { label: string; value: string };
+
+/**
+ * Filas del tooltip en lenguaje de negocio: qué costó la última vez, cuánto
+ * movieron los precios mayoristas y cuánto costaría hoy. Sin fechas del
+ * INDEC ni notas de publicación — eso vive en Configuración → Datos
+ * externos ("Ver datos"), la vista técnica.
+ */
+function buildRows(suggestion: ItemCostSuggestion): SuggestionRow[] {
   const variation = suggestion.ipimVariationPct;
-  const sourceName = suggestion.ipimSourceName ?? 'INDEC';
-
-  if (suggestion.lastCostSource === 'provider_order') {
-    const base = `Último costo cargado: ${formatCurrency(suggestion.lastCost)} (orden del ${formatDate(suggestion.lastCostAt)}).`;
-    if (variation === null) {
-      return `${base} No hay datos de precios mayoristas para ajustarlo — sugerimos ${suggested} tal cual. Sugerencia editable.`;
-    }
-    const from = suggestion.ipimVariationFromPeriod ? formatPeriodEs(suggestion.ipimVariationFromPeriod) : null;
-    const to = suggestion.ipimVariationToPeriod ? formatPeriodEs(suggestion.ipimVariationToPeriod) : null;
-    if (variation === 0) {
-      return `${base} Los precios mayoristas (${sourceName}) todavía no registran variación publicada desde esa compra — sugerimos ${suggested}. Sugerencia editable.`;
-    }
-    const sign = variation > 0 ? 'subieron' : 'bajaron';
-    const pct = `${Math.abs(variation).toFixed(1)}%`;
-    const window = from && to ? ` según la variación ${from} → ${to}` : '';
-    return `${base} Precios mayoristas (${sourceName}): ${sign} ${pct}${window}. Sugerimos ${suggested}. Sugerencia editable — dejala en lo que coteje tu proveedor.`;
+  let variationLabel: string;
+  if (variation === null) {
+    variationLabel = 'sin datos';
+  } else if (variation === 0) {
+    variationLabel = 'sin variación';
+  } else {
+    const sign = variation > 0 ? '+' : '−';
+    const basis =
+      suggestion.lastCostSource === 'provider_order' &&
+      suggestion.lastCostAt &&
+      suggestion.ipimVariationFromPeriod &&
+      suggestion.ipimVariationFromPeriod.slice(0, 7) < suggestion.lastCostAt.slice(0, 7)
+        ? 'desde tu última compra'
+        : 'el último mes medido';
+    variationLabel = `${sign}${Math.abs(variation).toFixed(1)}% ${basis}`;
   }
 
-  // Sin órdenes registradas: ancla = precio de compra de la ficha.
-  const base = `Este producto no tiene órdenes registradas: usé el precio de compra de la ficha (${formatCurrency(suggestion.lastCost)}).`;
-  if (variation === null || variation === 0) {
-    return `${base} Sin variación de precios mayoristas aplicable — sugerimos ${suggested}. Sugerencia editable.`;
-  }
-  const sign = variation > 0 ? 'subieron' : 'bajaron';
-  const pct = `${Math.abs(variation).toFixed(1)}%`;
-  return `${base} Los precios mayoristas (${sourceName}) ${sign} ${pct} el último mes. Sugerimos ${suggested}. Sugerencia editable.`;
+  const lastCostLabel =
+    suggestion.lastCostSource === 'provider_order' && suggestion.lastCostAt
+      ? `${formatCurrency(suggestion.lastCost)} (${formatDate(suggestion.lastCostAt)})`
+      : formatCurrency(suggestion.lastCost);
+
+  return [
+    { label: 'La última vez', value: lastCostLabel },
+    { label: 'Mayoristas', value: variationLabel },
+    { label: 'Hoy', value: `${formatCurrency(suggestion.suggestedCost)} · ajustable` },
+  ];
 }
 
 /**
@@ -57,6 +65,8 @@ function CostSuggestionHint({ itemId, currentCost, onApply }: CostSuggestionHint
 
   if (!suggestion) return null;
 
+  const rows = buildRows(suggestion);
+
   return (
     <TooltipProvider>
       <Tooltip>
@@ -65,7 +75,7 @@ function CostSuggestionHint({ itemId, currentCost, onApply }: CostSuggestionHint
             <button
               type="button"
               onClick={() => onApply(suggestion.suggestedCost)}
-              className="mt-1 inline-flex items-center gap-1 text-[11px] text-brand-600 hover:underline"
+              className="inline-flex items-center gap-1 text-[11px] text-brand-600 hover:underline"
               aria-label="Aplicar costo sugerido"
             >
               <LightbulbIcon className="size-3" weight="fill" />
@@ -74,7 +84,14 @@ function CostSuggestionHint({ itemId, currentCost, onApply }: CostSuggestionHint
           }
         />
         <TooltipContent className="max-w-72">
-          <p className="text-[11px] leading-relaxed">{buildExplanation(suggestion)}</p>
+          <div className="flex flex-col gap-1.5">
+            {rows.map((row) => (
+              <div key={row.label} className="flex items-baseline justify-between gap-4">
+                <span className="shrink-0 text-[11px] text-muted-foreground">{row.label}</span>
+                <span className="text-right text-[11px]">{row.value}</span>
+              </div>
+            ))}
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

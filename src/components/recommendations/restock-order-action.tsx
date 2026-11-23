@@ -32,17 +32,13 @@ function RestockOrderAction({ type, itemId, disabled, onApply }: RestockOrderAct
   const baseQuantity = deficit > 0 ? deficit : Number(criticalRow.minStock);
 
   // Reponer solo el déficit deja el stock pegado al mínimo: la próxima venta
-  // vuelve a disparar la alerta. Sumamos la demanda semanal promedio
-  // (últimos 28 días, calculada en el backend) como margen de reposición.
-  const weeklyRaw = suggestions?.quantitySuggestion.weeklyDemandUnits ?? null;
-  const weekly =
-    weeklyRaw === null
-      ? 0
-      : criticalRow.unitType === 'count'
-        ? Math.ceil(weeklyRaw)
-        : Math.round(weeklyRaw * 100) / 100;
-  const extra = Math.max(0, weekly);
-  const quantityToOrder = baseQuantity + extra;
+  // vuelve a disparar la alerta. Sumamos la demanda semanal (el backend la
+  // redondea según la unidad del producto: contable → entero por exceso).
+  const weekly = suggestions?.quantitySuggestion.weeklyDemandUnits ?? null;
+  const extra = weekly === null ? 0 : Math.max(0, weekly);
+  const total = baseQuantity + extra;
+  const isCountLike = criticalRow.unitType !== 'weight' && criticalRow.unitType !== 'volume';
+  const quantityToOrder = isCountLike ? Math.ceil(total) : Math.round(total * 100) / 100;
 
   const handleCreateOrder = () => {
     onApply();

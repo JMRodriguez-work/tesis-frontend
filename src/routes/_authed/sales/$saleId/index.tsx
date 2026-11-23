@@ -9,7 +9,7 @@ import { SaleCancelDialog } from '@/components/sales/sale-cancel-dialog';
 import { SaleStatusBadge } from '@/components/sales/sale-status-badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { formatCurrency, formatDate, formatDecimal } from '@/lib/format';
+import { formatCurrency, formatDate, formatDecimal, formatQuantity } from '@/lib/format';
 import { roleFromId } from '@/lib/role';
 import { cn } from '@/lib/utils';
 
@@ -193,7 +193,12 @@ function SaleDetailPage() {
                         {item.warehouseName}
                       </Link>
                     </td>
-                    <td className="p-2 text-right font-mono">{formatDecimal(item.quantity)}</td>
+                    <td className="p-2 text-right font-mono">
+                      {formatQuantity(item.quantity, item.unitType ?? null)}
+                      {item.unitAbbreviation ? (
+                        <span className="ml-1 text-muted-foreground">{item.unitAbbreviation}</span>
+                      ) : null}
+                    </td>
                     <td className="p-2 text-right font-mono">{formatCurrency(item.price)}</td>
                     <td className="p-2 text-right font-mono font-semibold">
                       {formatCurrency(lineTotal)}

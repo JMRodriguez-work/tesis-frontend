@@ -51,9 +51,9 @@ function DetectInactiveCustomersDialog({
     detectInactive.mutate(
       { days: values.days ?? 60, ...(branchId ? { branchId } : {}) },
       {
-        onSuccess: (data) => {
-          toast.success('Detección encolada', {
-            description: `Los resultados aparecerán al refrescar. JobId: ${data.jobId.slice(0, 8)}…`,
+        onSuccess: () => {
+          toast.success('Detección en proceso', {
+            description: `Los resultados aparecerán en unos momentos…`,
           });
           onOpenChange(false);
         },
@@ -105,7 +105,7 @@ function DetectInactiveCustomersDialog({
               form="detect-inactive-form"
               disabled={isSubmitting || detectInactive.isPending}
             >
-              {detectInactive.isPending ? 'Encolando…' : 'Detectar'}
+              {detectInactive.isPending ? 'Procesando...' : 'Detectar'}
             </Button>
           </DialogFooter>
         </form>

@@ -61,9 +61,16 @@ function NewItemPage() {
     [categories],
   );
 
+  // Convención del sistema: todo producto es contable por defecto. El
+  // combobox preselecciona "Unidad" y no ofrece "Sin unidad" — el backend
+  // también asigna esa unidad cuando el campo viene vacío.
+  const defaultUnitId = useMemo(
+    () => units?.find((unit) => unit.name === 'Unidad')?.id.toString() ?? null,
+    [units],
+  );
+
   const unitItems: ComboboxItem[] = useMemo(
     () => [
-      { label: '— Sin unidad —', value: null },
       ...(units?.map((unit) => ({
         label: `${unit.name} (${unit.abbreviation})`,
         value: unit.id.toString(),
@@ -316,11 +323,11 @@ function NewItemPage() {
             id="baseUnitId"
             label="Unidad base"
             items={unitItems}
-            value={watch('baseUnitId')?.toString() ?? null}
+            value={watch('baseUnitId')?.toString() ?? defaultUnitId}
             onValueChange={(value) =>
               setValue('baseUnitId', value === null ? undefined : Number(value))
             }
-            placeholder="Sin unidad"
+            placeholder="Seleccionar unidad"
           />
         </div>
 

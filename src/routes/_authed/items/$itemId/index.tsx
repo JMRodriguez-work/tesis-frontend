@@ -31,7 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { mapApiError } from '@/lib/api-error';
-import { formatCurrency, formatDate, formatDecimal, formatQuantity } from '@/lib/format';
+import { formatCurrency, formatDate, formatQuantity } from '@/lib/format';
 import { roleFromId } from '@/lib/role';
 import { cn } from '@/lib/utils';
 
@@ -105,7 +105,6 @@ function ItemDetailPage() {
         header: 'Cantidad',
         accessorFn: (row) => row.quantity,
         cell: ({ row }) => {
-          const q = Number(row.original.quantity);
           const sign = row.original.type === 'in' ? '+' : row.original.type === 'out' ? '-' : '±';
           const color =
             row.original.type === 'in'
@@ -116,7 +115,10 @@ function ItemDetailPage() {
           return (
             <span className={cn('font-mono', color)}>
               {sign}
-              {Number.isNaN(q) ? row.original.quantity : q.toString()}
+              {formatQuantity(row.original.quantity, row.original.unitType ?? null)}
+              {row.original.unitAbbreviation ? (
+                <span className="ml-1 text-muted-foreground">{row.original.unitAbbreviation}</span>
+              ) : null}
             </span>
           );
         },
@@ -125,8 +127,13 @@ function ItemDetailPage() {
         id: 'runningBalance',
         header: 'Saldo',
         accessorFn: (row) => row.runningBalance,
-        cell: ({ getValue }) => (
-          <span className="font-mono text-xs">{formatDecimal(getValue() as string | null)}</span>
+        cell: ({ row, getValue }) => (
+          <span className="font-mono text-xs">
+            {formatQuantity(getValue() as string | null, row.original.unitType ?? null)}
+            {row.original.unitAbbreviation ? (
+              <span className="ml-1 text-muted-foreground">{row.original.unitAbbreviation}</span>
+            ) : null}
+          </span>
         ),
       },
       textColumn<ItemStockHistoryItem>('Sucursal', 'branchName'),

@@ -106,3 +106,25 @@ export function formatPeriodEs(period: string): string {
 export function monthNameEs(month: number): string {
   return MONTH_NAMES_ES[month - 1] ?? '—';
 }
+
+/**
+ * Nota de frescura del dato del INDEC: los índices se publican con demora
+ * (aprox. 2 meses), así que en noviembre el último dato disponible es
+ * septiembre. Sin esta nota, ver "ago → sep" en noviembre parece dato viejo
+ * aunque sea el más nuevo que existe. Devuelve null si el dato está al día.
+ *
+ * Es información técnica: solo se muestra en la vista de administración de
+ * fuentes ("Ver datos"), nunca en los flujos de compra/venta.
+ */
+export function indecFreshnessNote(latestPeriod: string | null | undefined): string | null {
+  if (!latestPeriod) return null;
+  const match = /^(\d{4})-(\d{2})/.exec(latestPeriod);
+  if (!match) return null;
+  const now = new Date();
+  const monthsBehind =
+    (now.getFullYear() - Number(match[1])) * 12 +
+    (now.getMonth() + 1 - Number(match[2]));
+  if (monthsBehind < 1) return null;
+  const lag = monthsBehind === 1 ? '~1 mes' : `~${monthsBehind} meses`;
+  return `El INDEC publica los índices con ${lag} de demora (último dato: ${formatPeriodEs(latestPeriod)}).`;
+}
