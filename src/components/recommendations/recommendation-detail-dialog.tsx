@@ -97,7 +97,6 @@ function RecommendationDetailDialog({
               type={recommendation.type}
               itemId={recommendation.item?.id ?? null}
               disabled={updateStatus.isPending}
-              onApply={() => handleUpdate('applied')}
             />
 
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">

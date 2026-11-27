@@ -8,10 +8,9 @@ type RestockOrderActionProps = {
   type: string;
   itemId: string | null;
   disabled?: boolean;
-  onApply: () => void;
 };
 
-function RestockOrderAction({ type, itemId, disabled, onApply }: RestockOrderActionProps) {
+function RestockOrderAction({ type, itemId, disabled }: RestockOrderActionProps) {
   const navigate = useNavigate();
   const isRestock = type === 'restock' && itemId !== null;
   const { data: stockRows, isLoading } = useItemStock(isRestock ? itemId : '');
@@ -41,7 +40,9 @@ function RestockOrderAction({ type, itemId, disabled, onApply }: RestockOrderAct
   const quantityToOrder = isCountLike ? Math.ceil(total) : Math.round(total * 100) / 100;
 
   const handleCreateOrder = () => {
-    onApply();
+    // La recomendación NO se cierra al crear la orden: se cierra cuando la
+    // orden se recibe y el stock vuelve a estar sobre el mínimo (trigger
+    // onStockIncreased en el backend). Así el estado refleja el stock real.
     void navigate({
       to: '/provider-orders/new',
       search: {
