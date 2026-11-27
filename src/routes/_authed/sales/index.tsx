@@ -18,6 +18,13 @@ import { SaleExportMenu } from '@/components/sales/sale-export-menu';
 import { SaleStatusBadge } from '@/components/sales/sale-status-badge';
 import { Button } from '@/components/ui/button';
 import { ComboboxField, type ComboboxItem } from '@/components/ui/combobox';
+import {
+  type DateRange,
+  DateRangePicker,
+  parseISODate,
+  toISODate,
+  toISODateEnd,
+} from '@/components/ui/date-range-picker';
 import { useCurrentBranchId } from '@/hooks/use-branch';
 import { roleFromId } from '@/lib/role';
 
@@ -29,7 +36,18 @@ const STATUS_ITEMS: ComboboxItem[] = [
 const salesSearchSchema = z.object({
   page: z.number().int().min(1).default(1),
   includeCancelled: z.boolean().nullable().default(null),
+  from: z.string().nullable().default(null),
+  to: z.string().nullable().default(null),
 });
+
+// Mismo default que aplica el backend cuando no se manda `from`:
+// las ventas del día actual (en UTC) en adelante.
+function startOfTodayUtcIso(): string {
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  ).toISOString();
+}
 
 const Route = createFileRoute('/_authed/sales/')({
   validateSearch: salesSearchSchema,
@@ -52,13 +70,20 @@ function SalesIndexPage() {
       page: search.page,
       includeCancelled: search.includeCancelled,
       branchId: adminBranchId,
+      from: search.from ?? undefined,
+      to: search.to ?? undefined,
     }),
-    [search.page, search.includeCancelled, adminBranchId],
+    [search.page, search.includeCancelled, search.from, search.to, adminBranchId],
   );
 
   const { data, isLoading, error, refetch } = useSales(listQuery, {
     enabled: role !== 'Admin' || !!currentBranchId,
   });
+
+  const range = useMemo<DateRange>(
+    () => ({ from: parseISODate(search.from), to: parseISODate(search.to) }),
+    [search.from, search.to],
+  );
 
   const handlePageChange = (newPage: number) => {
     void navigate({ to: '.', search: { ...search, page: newPage } });
@@ -66,6 +91,17 @@ function SalesIndexPage() {
   const handleStatusChange = (value: string | null) => {
     const next = value === 'true' ? true : value === 'false' ? false : null;
     void navigate({ to: '.', search: { ...search, includeCancelled: next, page: 1 } });
+  };
+  const handleRangeChange = (nextRange: DateRange) => {
+    void navigate({
+      to: '.',
+      search: {
+        ...search,
+        from: toISODate(nextRange.from),
+        to: toISODateEnd(nextRange.to),
+        page: 1,
+      },
+    });
   };
 
   const columns = useMemo<ColumnDef<SaleListRow, unknown>[]>(
@@ -124,7 +160,12 @@ function SalesIndexPage() {
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          {canExport ? <SaleExportMenu /> : null}
+          {canExport ? (
+            <SaleExportMenu
+              from={search.from ?? startOfTodayUtcIso()}
+              to={search.to ?? undefined}
+            />
+          ) : null}
           {!showBranchWarning ? (
             <Button size="sm" onClick={() => void navigate({ to: '/sales/new' })}>
               <PlusIcon className="size-4" />
@@ -143,6 +184,12 @@ function SalesIndexPage() {
           placeholder="Solo activas"
           className="w-56"
         />
+        <DateRangePicker
+          value={range}
+          onChange={handleRangeChange}
+          placeholder="Hoy"
+          className="w-80"
+        />
       </div>
 
       <DataTable
@@ -154,7 +201,11 @@ function SalesIndexPage() {
         error={error}
         onRetry={() => void refetch()}
         emptyTitle="Sin ventas"
-        emptyDescription="Aún no hay ventas registradas en esta sucursal. Creá la primera."
+        emptyDescription={
+          search.from || search.to
+            ? 'No hay ventas en el rango de fechas seleccionado.'
+            : 'No hay ventas registradas hoy. Probá seleccionar otro rango de fechas.'
+        }
         emptyAction={
           !showBranchWarning ? (
             <Button size="sm" onClick={() => void navigate({ to: '/sales/new' })}>

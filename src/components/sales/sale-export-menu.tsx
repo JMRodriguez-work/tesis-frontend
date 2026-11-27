@@ -12,14 +12,24 @@ import {
 import { useCurrentBranchId } from '@/hooks/use-branch';
 import { mapApiError } from '@/lib/api-error';
 
-function SaleExportMenu() {
+type SaleExportMenuProps = {
+  from?: string;
+  to?: string;
+};
+
+function SaleExportMenu({ from, to }: SaleExportMenuProps) {
   const exportSales = useExportSales();
   const [open, setOpen] = useState(false);
   const currentBranchId = useCurrentBranchId();
 
   const handleExport = (format: 'csv' | 'json') => {
     exportSales.mutate(
-      { format, ...(currentBranchId ? { branchId: currentBranchId } : {}) },
+      {
+        format,
+        ...(currentBranchId ? { branchId: currentBranchId } : {}),
+        ...(from ? { from } : {}),
+        ...(to ? { to } : {}),
+      },
       {
         onSuccess: () => {
           toast.success(`Exportando ${format.toUpperCase()}…`);

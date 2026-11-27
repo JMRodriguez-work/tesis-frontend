@@ -27,9 +27,20 @@ function toStartOfDay(d: Date): Date {
   return copy;
 }
 
+function toEndOfDay(d: Date): Date {
+  const copy = new Date(d);
+  copy.setHours(23, 59, 59, 999);
+  return copy;
+}
+
 export function toISODate(d: Date | undefined | null): string | null {
   if (!d) return null;
   return toStartOfDay(d).toISOString();
+}
+
+export function toISODateEnd(d: Date | undefined | null): string | null {
+  if (!d) return null;
+  return toEndOfDay(d).toISOString();
 }
 
 export function parseISODate(s: string | null | undefined): Date | undefined {
